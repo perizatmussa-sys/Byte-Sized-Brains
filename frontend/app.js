@@ -55,6 +55,7 @@ const ICONS = {
   chat: '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M4 5h16v11H8l-4 4z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg>',
   operator: '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 13v-1a7 7 0 0114 0v1M5 13h2.5v5H6a1 1 0 01-1-1zm14 0h-2.5v5H18a1 1 0 001-1zM16.5 18c0 1.5-1.5 2.5-4.5 2.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   client: '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="8.5" r="3.8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5 20c1-3.6 3.7-5.5 7-5.5s6 1.9 7 5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  system: '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 8v4l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
   bot: '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="5" y="8" width="14" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 4v4M9.5 13h.01M14.5 13h.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>',
   check: '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 12.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   partial: '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M12 7v6" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><circle cx="12" cy="17" r="1.4" fill="currentColor"/></svg>',
@@ -81,6 +82,14 @@ function verdict(score, gross) {
   if (score >= 80) return {tone: "good", text: "Соответствует"};
   if (score >= 65) return {tone: "mid", text: "Частично"};
   return {tone: "low", text: "Не соответствует"};
+}
+
+// Чаты: MM:SS; звонки: ISO 8601 с часовым поясом — показываем только время.
+function formatStamp(stamp) {
+  if (!stamp) return "";
+  const text = String(stamp);
+  const iso = text.match(/T(\d{2}:\d{2}:\d{2})/);
+  return iso ? iso[1] : text;
 }
 
 function jumpToMessage(index) {
@@ -156,7 +165,7 @@ function renderList() {
   $("list-count").textContent = String(filtered.length);
   container.replaceChildren();
   if (!filtered.length) {
-    container.append(node("div", allConversations.length ? "Ничего не найдено. Измените фильтр." : "Пока нет диалогов. Нажмите «DEV API».", "muted list-empty"));
+    container.append(node("div", allConversations.length ? "Ничего не найдено. Измените фильтр." : "Пока нет диалогов. Нажмите «Обновить» вверху.", "muted list-empty"));
     return;
   }
   for (const conversation of filtered) {
@@ -204,14 +213,17 @@ async function openConversation(conversationId) {
     messages.replaceChildren();
     for (const [index, message] of conversation.transcript.entries()) {
       const speaker = String(message.speaker || "").toLowerCase();
-      const role = speaker === "operator" ? "operator" : speaker === "bot" ? "bot" : "client";
+      const role = ["operator", "bot", "system"].includes(speaker) ? speaker : "client";
       const block = node("article", "", `message ${role}`);
       block.id = `msg-${index}`;
       const avatar = svg(ICONS[role]);
       avatar.classList.add("msg-avatar");
       const body = node("div", "", "msg-body");
-      const roleName = {operator: "Оператор", bot: "Бот", client: "Клиент"}[role];
-      body.append(node("div", `${roleName}${message.timestamp ? " · " + message.timestamp : ""} · #${index + 1}`, "info"), node("p", message.text || ""));
+      const roleName = {operator: "Оператор", bot: "Бот", client: "Клиент", system: "Система"}[role];
+      const time = formatStamp(message.timestamp);
+      const info = node("div", `${roleName}${time ? " · " + time : ""} · #${index + 1}`, "info");
+      if (message.timestamp) info.title = String(message.timestamp);
+      body.append(info, node("p", message.text || ""));
       block.append(avatar, body);
       messages.append(block);
     }
@@ -342,7 +354,7 @@ async function renderAssessment() {
   const freshLabel = node("label", "", "checkline");
   const forceCheckbox = document.createElement("input");
   forceCheckbox.type = "checkbox";
-  freshLabel.append(forceCheckbox, node("span", "Оценить заново (расходует токены)"));
+  freshLabel.append(forceCheckbox, node("span", "Оценить заново (новый запрос к AI)"));
   const buttons = node("div", "", "actions start");
   const aiButton = node("button", "Оценить с AI", "primary"); aiButton.type = "button"; aiButton.disabled = true;
   const compareButton = node("button", "Сравнить Groq и Gemini", "secondary"); compareButton.type = "button"; compareButton.disabled = true;
@@ -371,7 +383,7 @@ async function renderAssessment() {
     const status = await requestJson("/api/ai/status");
     const available = (status.providers || []).filter(p => p.configured);
     aiStatus.textContent = available.length
-      ? `Подключено: ${available.map(p => p.name + " (" + p.model + ")").join("; ")}. Повторный просмотр не тратит токены.`
+      ? `Подключено: ${available.map(p => p.name + " (" + p.model + ")").join("; ")}.`
       : "Нет API-ключей. Добавьте GROQ_API_KEY и/или GEMINI_API_KEY в .env и перезапустите сервер.";
     aiButton.disabled = !available.length;
     compareButton.disabled = !available.length;
@@ -506,10 +518,6 @@ function renderResult(parent, result) {
   summary.append(node("strong", `${isAi ? aiName : "Ручная оценка"}: ${score}`), node("span", "Обоснования по критериям", "muted small"));
   parent.append(summary);
   parent.append(node("p", `Режим: ${isAi ? "AI" : "ручной"}${isAi ? " · Модель: " + (result.model || "?") : ""} · Чек-лист версия ${result.checklist_version} · Грубая ошибка: ${result.gross_violation ? "ДА" : "нет"}`, "muted small"));
-  if (isAi && result.usage) {
-    const u = result.usage;
-    parent.append(node("p", `Токены: вход ${u.input_tokens ?? "—"}, выход ${u.output_tokens ?? "—"}, всего ${u.total_tokens ?? "—"}.`, "muted small"));
-  }
   const sections = Object.entries(result.sections || {}).map(([k, v]) => `${k}: ${v}/100`).join(" · ");
   if (sections) parent.append(node("p", sections, "small"));
   for (const item of result.criteria) {
@@ -778,7 +786,7 @@ function renderEditor() {
 async function importDev() {
   const button = $("import-btn");
   button.disabled = true;
-  notify("Загружаем диалоги с API...", "");
+  notify("Загружаем 65 диалогов из DEV API...", "");
   try {
     const result = await requestJson("/api/import", {method: "POST"});
     await refresh();
@@ -829,8 +837,12 @@ $("save-checklist").addEventListener("click", async () => {
 });
 
 refresh()
-  .then(status => notify(status.data_loaded
-    ? `Диалоги готовы: ${status.record_count}. Выберите диалог в списке.`
-    : "Вставьте API-ссылку в .env, перезапустите сервер и нажмите «DEV API».", status.data_loaded ? "success" : ""))
+  .then(status => {
+    // Диалоги ещё не загружены, но ссылка есть — загружаем DEV автоматически.
+    if (!status.data_loaded && status.api_configured) return importDev();
+    notify(status.data_loaded
+      ? `Диалоги готовы: ${status.record_count}. Выберите диалог в списке.`
+      : "Нет ссылки на DEV API: добавьте CQA_API_URL в файл .env и перезапустите сервер.", status.data_loaded ? "success" : "error");
+  })
   .catch(error => notify(`Ошибка подключения к серверу: ${error.message}`, "error"));
 loadChecklist().catch(error => notify(`Ошибка загрузки чек-листа: ${error.message}`, "error"));
