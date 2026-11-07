@@ -1,6 +1,7 @@
 /* Этап 5 — апелляции в тёмной теме */
 .appeals-panel:empty { display: none; }
-.appeals-panel { border-top: 1px solid var(--line); margin-top: 28px; padding-top: 22px; }
+.appeals-panel { border-top: 1px solid var(--line); margin-top: 20px; padding-top: 18px; scroll-margin-top: 16px; }
+.appeals-panel h2 { font-size: 17px; }
 .appeals-panel h2 { margin: 0 0 7px; }
 .appeals-panel h3 { margin: 0 0 12px; font-size: 16px; }
 .appeals-box { background: rgba(0, 0, 0, .18); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin: 15px 0; }

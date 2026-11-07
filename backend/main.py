@@ -9,7 +9,7 @@
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import requests
 from dotenv import load_dotenv
@@ -183,6 +183,7 @@ def list_conversations():
             "kind": conversation_kind(record),
             "message_count": len(record.get("transcript", [])),
             "has_audio": bool(record.get("audio_url")),
+            "search_text": " ".join(str(m.get("text", "")) for m in record.get("transcript", [])).lower(),
         }
         for record in read_saved_records()
     ]
@@ -297,3 +298,64 @@ def new_appeal(payload: dict[str, Any]):
 @app.post("/api/appeals/{appeal_id}/decision")
 def submit_appeal_decision(appeal_id: str, payload: dict[str, Any]):
     return decide_appeal(appeal_id, payload, find_conversation_or_404)
+
+
+# --------------------------------------------------
+# Рабочее пространство: баллы для списка, сводка апелляций, аналитика.
+# Только чтение сохранённых данных — AI не вызывается.
+# --------------------------------------------------
+from .appeals import _load as load_all_appeals
+
+
+def criterion_percent(row: dict[str, Any]) -> Optional[float]:
+    """Процент выполнения критерия; None для N/A и флагов без баллов."""
+    points, weight = row.get("points_before_redistribution"), row.get("weight") or 0
+    if row.get("value") == "na" or points is None or weight <= 0:
+        return None
+    return round(points / weight * 100, 1)
+
+
+def result_summary(result: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "score": result.get("score"),
+        "gross_violation": bool(result.get("gross_violation")),
+        "created_at": result.get("created_at"),
+        "criteria": [{"id": r.get("id"), "name": r.get("name"), "type": r.get("type"),
+                      "value": r.get("value"), "percent": criterion_percent(r),
+                      "reason": r.get("reason"), "evidence_index": r.get("evidence_index")}
+                     for r in result.get("criteria", [])],
+    }
+
+
+@app.get("/api/scores")
+def get_scores():
+    """Для каждого диалога: доступные оценки и «основная» (после апелляции > Groq > Gemini > ручная)."""
+    manual = saved_evaluations()
+    finals: dict[str, dict[str, Any]] = {}
+    for appeal in load_all_appeals():
+        if appeal.get("status") == "resolved" and appeal.get("final_result"):
+            current = finals.get(appeal["conversation_id"])
+            if current is None or str(appeal.get("decided_at", "")) >= str(current.get("decided_at", "")):
+                finals[appeal["conversation_id"]] = appeal
+    out = {}
+    for record in read_saved_records():
+        cid = record.get("conversation_id")
+        sources: dict[str, Any] = {}
+        if cid in finals:
+            sources["final"] = result_summary(finals[cid]["final_result"])
+        for provider, result in saved_for_conversation(cid).items():
+            sources[provider] = result_summary(result)
+        if cid in manual:
+            sources["manual"] = result_summary(manual[cid])
+        primary = next((k for k in ("final", "groq", "gemini", "manual") if k in sources), None)
+        out[cid] = {"primary": primary, "score": sources[primary]["score"] if primary else None,
+                    "kind": conversation_kind(record), "language": record.get("language"), "sources": sources}
+    return out
+
+
+@app.get("/api/appeals/all")
+def get_all_appeals():
+    """Краткий список всех апелляций для разделов «Апелляции» и «Ревью»."""
+    keys = ("id", "conversation_id", "source", "criterion_id", "criterion_name", "comment", "status",
+            "created_at", "decided_at", "original_score", "final_score", "decision")
+    return [{k: a.get(k) for k in keys} for a in load_all_appeals()][::-1]

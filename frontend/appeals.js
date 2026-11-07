@@ -154,6 +154,7 @@
           body: JSON.stringify({conversation_id: conversationId, source: source.value,
             criterion_id: criterionSelect.value, comment: comment.value.trim()})});
         await refresh(conversationId);
+        document.dispatchEvent(new CustomEvent("cqa:appeals-changed", {detail: {conversationId}}));
       } catch (err) {message.textContent = `Ошибка: ${err.message}`;}
       finally {send.disabled = false;}
     });
@@ -223,6 +224,7 @@
         await api(`/api/appeals/${encodeURIComponent(appeal.id)}/decision`, {
           method:"POST",headers:{"Content-Type":"application/json"}, body:JSON.stringify(answer)});
         await refresh(conversationId);
+        document.dispatchEvent(new CustomEvent("cqa:appeals-changed", {detail: {conversationId}}));
       } catch(err) {message.textContent=`Ошибка: ${err.message}`;}
       finally {submit.disabled = false;}
     });

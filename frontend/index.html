@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Byte-Sized-Brains · Контроль качества операторов</title>
+  <title>Контроль качества операторов · AI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" />
@@ -17,23 +17,19 @@
   <!-- ЭКРАН 1: лендинг. Страница не прокручивается, пока не нажата кнопка. -->
   <section id="hero" class="hero" aria-labelledby="hero-title">
     <nav class="nav wrap" aria-label="Главное меню">
-      <a class="brand" href="#hero" data-home>
-        <span class="brand-mark" aria-hidden="true">B</span>
-        <span>Byte-Sized-Brains</span><span class="pill">CQA</span>
-      </a>
+      <span></span>
       <div class="nav-links">
         <button type="button" class="nav-link" data-enter="how">Как это работает</button>
-        <button type="button" class="nav-link" data-enter="workspace">Скрипты</button>
-        <button type="button" class="nav-link" data-enter="checklist-panel">Чек-лист</button>
+        <button type="button" class="nav-link" data-enter="workspace" data-view="evaluate">Скрипты</button>
+        <button type="button" class="nav-link" data-enter="workspace" data-view="analytics">Аналитика</button>
+        <button type="button" class="nav-link" data-enter="workspace" data-view="checklist">Чек-лист</button>
       </div>
-      <button type="button" class="btn btn-light" data-enter="workspace">Попробовать бесплатно</button>
+      <button type="button" class="btn btn-light nav-cta" data-enter="workspace">Попробовать бесплатно</button>
     </nav>
 
     <div class="hero-content wrap">
-      <span class="eyebrow"><i aria-hidden="true"></i>FREEDOM BROKER · CQA HACKATHON</span>
       <h1 id="hero-title">Проверяйте качество работы операторов <span class="grad">с помощью AI.</span></h1>
-      <p class="lead">Выберите звонок или переписку из <strong data-count>65</strong> скриптов — AI оценит разговор по чек-листу из 8 критериев,
-        покажет доказательства в репликах, а вы сможете перепроверить, оспорить и скачать результат.</p>
+      <p class="lead">AI оценит звонок или переписку по вашему чек-листу и покажет доказательства в репликах.</p>
       <div class="hero-actions">
         <button type="button" class="btn btn-primary btn-lg" data-enter="workspace">Попробовать бесплатно</button>
         <button type="button" class="btn btn-ghost btn-lg" data-enter="how">Как это работает</button>
@@ -41,8 +37,8 @@
     </div>
 
     <dl class="hero-stats wrap">
-      <div><dt data-count>65</dt><dd>скриптов звонков и переписок</dd></div>
-      <div><dt>8</dt><dd>критериев чек-листа качества</dd></div>
+      <div><dt>Безлимит</dt><dd>скриптов, звонков и переписок</dd></div>
+      <div><dt>Безлимит</dt><dd>критериев в чек-листе</dd></div>
       <div><dt>2&nbsp;AI</dt><dd>GroqCloud и Google Gemini</dd></div>
       <div><dt>0</dt><dd>токенов на повторный просмотр</dd></div>
     </dl>
@@ -53,110 +49,194 @@
     </button>
   </section>
 
-  <!-- ЭКРАН 2: рабочая часть -->
-  <div id="app">
-    <header class="topbar">
-      <div class="wrap topbar-inner">
-        <a class="brand" href="#hero" data-home>
-          <span class="brand-mark" aria-hidden="true">B</span>
-          <span>Byte-Sized-Brains</span><span class="pill">CQA</span>
-        </a>
-        <nav class="nav-links" aria-label="Разделы">
-          <button type="button" class="nav-link" data-home>Главная</button>
-          <button type="button" class="nav-link" data-goto="workspace">Скрипты</button>
-          <button type="button" class="nav-link" data-goto="checklist-panel">Чек-лист</button>
-        </nav>
-        <button type="button" id="import-btn" class="btn btn-light btn-sm">Загрузить DEV из API</button>
-      </div>
-    </header>
+  <!-- ЭКРАН 2: как это работает -->
+  <section id="how" class="how wrap" aria-labelledby="how-title">
+    <span class="eyebrow"><i aria-hidden="true"></i>КАК ЭТО РАБОТАЕТ</span>
+    <h2 id="how-title">Три шага до оценки качества</h2>
+    <ol class="steps">
+      <li><span class="step-num">01</span><h3>Выберите скрипт</h3><p>Отфильтруйте звонки или переписки по каналу и языку, найдите диалог по ID или тексту.</p></li>
+      <li><span class="step-num">02</span><h3>Оцените с AI</h3><p>GroqCloud или Gemini проверят разговор по чек-листу, а Python пересчитает итоговый балл.</p></li>
+      <li><span class="step-num">03</span><h3>Проверьте и скачайте</h3><p>Сравните с ручной оценкой, подайте апелляцию, проведите ревью и скачайте скрипты.</p></li>
+    </ol>
+    <div class="how-cta"><button type="button" class="btn btn-primary btn-lg" data-goto="workspace">Открыть рабочее пространство</button></div>
+  </section>
 
-    <section id="how" class="how wrap" aria-labelledby="how-title">
-      <span class="eyebrow"><i aria-hidden="true"></i>КАК ЭТО РАБОТАЕТ</span>
-      <h2 id="how-title">Три шага до оценки качества</h2>
-      <ol class="steps">
-        <li><span class="step-num">01</span><h3>Выберите скрипт</h3><p>Отфильтруйте звонки или переписки, найдите нужный диалог по ID и откройте транскрипт.</p></li>
-        <li><span class="step-num">02</span><h3>Оцените с AI</h3><p>GroqCloud или Gemini проверят разговор по чек-листу, а Python пересчитает итоговый балл.</p></li>
-        <li><span class="step-num">03</span><h3>Проверьте и скачайте</h3><p>Сравните с ручной оценкой, подайте апелляцию по критерию и скачайте скрипты в TXT или JSON.</p></li>
-      </ol>
-    </section>
+  <!-- ЭКРАН 3: рабочее пространство -->
+  <section id="workspace" class="workspace" aria-labelledby="workspace-title">
+    <div class="wrap-wide">
+      <header class="workspace-intro">
+        <h2 id="workspace-title">Рабочее пространство оценки</h2>
+        <p>Удобный интерфейс для анализа, оценки и контроля качества диалогов.</p>
+      </header>
 
-    <main id="workspace" class="wrap">
-      <div id="notice" role="status" aria-live="polite">Проверяем состояние приложения...</div>
-
-      <section class="stats" aria-label="Статистика">
-        <article class="stat"><span>Загружено скриптов</span><strong id="count">0</strong></article>
-        <article class="stat"><span>Звонки / переписки</span><strong id="kind-split">—</strong></article>
-        <article class="stat"><span>Статус API</span><strong id="api-status">—</strong></article>
-        <article class="stat"><span>Модуль оценки</span><strong>Ручной + AI</strong></article>
-      </section>
-
-      <section class="layout">
-        <aside class="panel library" aria-labelledby="library-title">
-          <div class="panel-heading">
-            <h2 id="library-title">Библиотека скриптов</h2>
+      <div class="app-window">
+        <!-- Боковое меню -->
+        <aside class="sidebar" aria-label="Разделы">
+          <div class="side-logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 3a4 4 0 00-4 4v.3A3.5 3.5 0 006 14a3.5 3.5 0 003.5 5H12m0-16a4 4 0 014 4v.3A3.5 3.5 0 0118 14a3.5 3.5 0 01-3.5 5H12m0-16v16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
-          <div class="segmented" role="tablist" aria-label="Тип скрипта">
-            <button type="button" role="tab" data-kind="all" aria-selected="true">Все <span data-kind-count="all">0</span></button>
-            <button type="button" role="tab" data-kind="call" aria-selected="false">Звонки <span data-kind-count="call">0</span></button>
-            <button type="button" role="tab" data-kind="chat" aria-selected="false">Сообщения <span data-kind-count="chat">0</span></button>
-          </div>
-          <div class="filters">
-            <label class="search-field">
-              <span class="sr-only">Найти скрипт по ID</span>
-              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-              <input id="search" placeholder="Поиск по ID, например p1-ru-001" autocomplete="off" />
-            </label>
-            <label class="sr-only" for="language-filter">Язык</label>
-            <select id="language-filter" aria-label="Язык"><option value="">Все языки</option></select>
-          </div>
-          <div id="conversation-list" class="list" role="list"></div>
-          <div class="export">
-            <span class="muted small">Скачать <span id="export-label">все скрипты</span>:</span>
-            <a id="export-txt" class="btn btn-ghost btn-sm" href="/api/export?kind=all&format=txt" download>TXT</a>
-            <a id="export-json" class="btn btn-ghost btn-sm" href="/api/export?kind=all&format=json" download>JSON</a>
+          <nav class="side-nav">
+            <button type="button" data-view="evaluate" aria-current="page">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 5h16v11H8l-4 4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 10.5l2 2 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>Оценка диалогов</span></button>
+            <button type="button" data-view="appeals">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3l7 4v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 8v4m0 3v.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              <span>Апелляции</span><em class="side-badge" id="badge-appeals" hidden></em></button>
+            <button type="button" data-view="review">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 4h6v3H9zM9 12l2 2 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>Ревью</span><em class="side-badge warn" id="badge-review" hidden></em></button>
+            <button type="button" data-view="analytics">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 20V11m5 9V5m5 15v-7m5 7V8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              <span>Аналитика</span></button>
+            <button type="button" data-view="checklist">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>Чек-лист</span></button>
+          </nav>
+          <div class="side-foot">
+            <button type="button" class="side-home" data-home>
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+              <span>На главную</span></button>
+            <div class="side-user">
+              <span class="avatar">A</span>
+              <span class="side-user-text"><strong>Админ</strong><small>API: <span id="api-status">—</span></small></span>
+            </div>
           </div>
         </aside>
 
-        <section class="panel transcript-panel" aria-labelledby="conversation-title">
-          <div class="transcript-head">
-            <div>
-              <h2 id="conversation-title">Выберите скрипт</h2>
-              <div id="conversation-meta" class="muted">Откройте звонок или переписку слева — здесь появятся транскрипт, AI-оценка и апелляции.</div>
+        <div class="app-main">
+          <!-- Верхняя панель -->
+          <header class="app-bar">
+            <div class="app-bar-title">
+              <h3 id="view-title">Оценка диалогов</h3>
+              <span class="muted small" id="view-sub"><span id="count">0</span> скриптов · <span id="kind-split">—</span> звонков / переписок</span>
             </div>
-            <div id="download-actions" class="download-actions" hidden>
-              <a id="download-txt" class="btn btn-ghost btn-sm" href="#" download>
-                <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                TXT</a>
-              <a id="download-json" class="btn btn-ghost btn-sm" href="#" download>
-                <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                JSON</a>
+            <div class="app-bar-tools" id="filters">
+              <label class="chip-select">
+                <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                <span>Канал:</span>
+                <select id="channel-filter" aria-label="Канал">
+                  <option value="all">Все</option><option value="call">Звонок</option><option value="chat">Переписка</option>
+                </select>
+              </label>
+              <label class="chip-select">
+                <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3.5 12h17M12 3.5c2.5 2.5 3.5 5.5 3.5 8.5s-1 6-3.5 8.5c-2.5-2.5-3.5-5.5-3.5-8.5s1-6 3.5-8.5" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
+                <span>Язык:</span>
+                <select id="language-filter" aria-label="Язык"><option value="">Все</option></select>
+              </label>
+              <button type="button" id="import-btn" class="btn btn-ghost btn-sm" title="Загрузить диалоги из DEV API">
+                <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M4 12a8 8 0 0114-5.3M20 12a8 8 0 01-14 5.3M18 3v4h-4M6 21v-4h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span>DEV API</span></button>
             </div>
-          </div>
-          <div id="empty-state" class="empty-state">
-            <div class="empty-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="28" height="28"><path d="M4 5h16v11H8l-4 4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8 9h8M8 12h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-            </div>
-            <p>Скрипт ещё не выбран</p>
-          </div>
-          <div id="messages" class="messages"></div>
-          <div id="audio-area"></div>
-          <section id="assessment-area" class="assessment"></section>
-          <section id="appeals-panel" class="appeals-panel" aria-live="polite"></section>
-        </section>
-      </section>
+          </header>
 
-      <details class="panel settings-panel" id="checklist-panel">
-        <summary>
-          <div><h2>Настройка чек-листа</h2><p class="muted">Формулировки, типы, веса, шкалы и N/A. Не изменяйте ID существующих критериев без необходимости.</p></div>
-          <span class="chev" aria-hidden="true"></span>
-        </summary>
-        <div class="actions start"><button type="button" id="load-checklist" class="secondary">Обновить</button></div>
-        <div id="criteria-editor"></div>
-        <div class="actions"><button type="button" id="add-criterion" class="secondary">+ Новый критерий</button><button type="button" id="save-checklist" class="primary">Сохранить чек-лист</button></div>
-      </details>
+          <div id="notice" role="status" aria-live="polite">Проверяем состояние приложения...</div>
 
+          <!-- Вид: Оценка диалогов -->
+          <section class="view view-evaluate" data-view-panel="evaluate">
+            <aside class="col col-list" aria-labelledby="list-title">
+              <div class="col-head">
+                <h4 id="list-title">Диалоги (<span id="list-count">0</span>)</h4>
+                <select id="sort-select" class="mini-select" aria-label="Сортировка">
+                  <option value="id">По ID</option><option value="score-desc">Балл ↓</option><option value="score-asc">Балл ↑</option><option value="unscored">Без оценки</option>
+                </select>
+              </div>
+              <label class="search-field">
+                <span class="sr-only">Поиск по ID или тексту</span>
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                <input id="search" placeholder="Поиск по ID или тексту…" autocomplete="off" />
+              </label>
+              <div id="conversation-list" class="list" role="list"></div>
+              <div class="export">
+                <span class="muted small">Скачать <span id="export-label">все</span>:</span>
+                <a id="export-txt" class="btn btn-ghost btn-xs" href="/api/export?kind=all&format=txt" download>TXT</a>
+                <a id="export-json" class="btn btn-ghost btn-xs" href="/api/export?kind=all&format=json" download>JSON</a>
+              </div>
+            </aside>
+
+            <section class="col col-center" aria-labelledby="conversation-title">
+              <div class="mode-tabs" role="tablist" aria-label="Режим оценки">
+                <button type="button" role="tab" data-mode="ai" aria-selected="true">
+                  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z" fill="currentColor"/></svg>
+                  AI-оценка</button>
+                <button type="button" role="tab" data-mode="manual" aria-selected="false">
+                  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                  Ручная оценка</button>
+              </div>
+
+              <div class="transcript-head">
+                <div>
+                  <h4 id="conversation-title">Транскрипт диалога</h4>
+                  <div id="conversation-meta" class="muted small">Выберите диалог в списке слева.</div>
+                </div>
+                <div id="download-actions" class="download-actions" hidden>
+                  <a id="download-txt" class="btn btn-ghost btn-xs" href="#" download title="Скачать TXT">
+                    <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>TXT</a>
+                  <a id="download-json" class="btn btn-ghost btn-xs" href="#" download title="Скачать JSON">
+                    <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>JSON</a>
+                </div>
+              </div>
+              <div id="audio-area"></div>
+              <div id="empty-state" class="empty-state">
+                <div class="empty-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="28" height="28"><path d="M4 5h16v11H8l-4 4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8 9h8M8 12h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                </div>
+                <p>Диалог ещё не выбран</p>
+              </div>
+              <div id="messages" class="messages"></div>
+              <section id="assessment-area" class="assessment"></section>
+              <section id="appeals-panel" class="appeals-panel" aria-live="polite"></section>
+            </section>
+
+            <aside class="col col-summary" id="summary" aria-label="Итог оценки">
+              <div class="score-card">
+                <span class="muted small">Итоговый балл</span>
+                <div class="score-row"><strong id="summary-score">—</strong><span id="summary-badge" class="status-badge none">Нет оценки</span></div>
+                <div id="summary-sources" class="source-chips"></div>
+                <p id="summary-note" class="muted small">Откройте диалог и оцените его с AI или вручную.</p>
+              </div>
+              <div class="criteria-card">
+                <h4>Критерии оценки (<span id="summary-count">0</span>)</h4>
+                <ul id="summary-criteria" class="criteria-list"></ul>
+              </div>
+            </aside>
+          </section>
+
+          <!-- Вид: Апелляции -->
+          <section class="view view-table" data-view-panel="appeals" hidden>
+            <div class="view-head"><p class="muted">Все обращения пользователей по оценкам. Нажмите на строку, чтобы открыть диалог.</p>
+              <div class="pill-filter" role="group" aria-label="Статус">
+                <button type="button" data-appeal-filter="all" aria-pressed="true">Все</button>
+                <button type="button" data-appeal-filter="pending" aria-pressed="false">Открытые</button>
+                <button type="button" data-appeal-filter="resolved" aria-pressed="false">Решённые</button>
+              </div>
+            </div>
+            <div id="appeals-table" class="table-wrap"></div>
+          </section>
+
+          <!-- Вид: Ревью -->
+          <section class="view view-table" data-view-panel="review" hidden>
+            <div class="view-head"><p class="muted">Очередь проверяющего: апелляции, по которым ещё нет решения.</p></div>
+            <div id="review-queue" class="review-grid"></div>
+          </section>
+
+          <!-- Вид: Аналитика -->
+          <section class="view view-analytics" data-view-panel="analytics" hidden>
+            <div id="analytics" class="analytics"></div>
+          </section>
+
+          <!-- Вид: Чек-лист -->
+          <section class="view view-checklist" data-view-panel="checklist" hidden>
+            <div class="view-head">
+              <p class="muted">Формулировки, типы, веса, шкалы и N/A. Количество критериев не ограничено. Не меняйте ID существующих критериев без необходимости.</p>
+              <button type="button" id="load-checklist" class="secondary">Обновить</button>
+            </div>
+            <div id="criteria-editor"></div>
+            <div class="actions"><button type="button" id="add-criterion" class="secondary">+ Новый критерий</button><button type="button" id="save-checklist" class="primary">Сохранить чек-лист</button></div>
+          </section>
+        </div>
+      </div>
       <footer>AI-оценки, апелляции и решения проверяющего сохраняются отдельно. Пересмотр человеком не требует нового AI-запроса.</footer>
-    </main>
-  </div>
+    </div>
+  </section>
 </body>
 </html>
