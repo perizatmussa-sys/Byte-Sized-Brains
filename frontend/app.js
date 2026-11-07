@@ -23,29 +23,84 @@ async function requestJson(url, options = undefined) {
   return payload;
 }
 
+let activeKind = "all";
+const KIND_LABEL = {call: "Звонок", chat: "Переписка"};
+const KIND_ICON = {
+  call: '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+  chat: '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 5h16v11H8l-4 4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+};
+const kindOf = (c) => c.kind || (/call|voice|phone/i.test(c.channel || "") || c.has_audio ? "call" : "chat");
+const downloadUrl = (id, format) => `/api/conversations/${encodeURIComponent(id)}/download?format=${format}`;
+
+function updateKindCounts() {
+  const counts = {all: allConversations.length, call: 0, chat: 0};
+  for (const c of allConversations) counts[kindOf(c)] += 1;
+  for (const [kind, value] of Object.entries(counts)) {
+    document.querySelectorAll(`[data-kind-count="${kind}"]`).forEach(el => el.textContent = String(value));
+  }
+  $("kind-split").textContent = `${counts.call} / ${counts.chat}`;
+  document.querySelectorAll("[data-count]").forEach(el => el.textContent = String(counts.all || 65));
+  const languages = [...new Set(allConversations.map(c => c.language).filter(Boolean))].sort();
+  const select = $("language-filter");
+  const current = select.value;
+  select.replaceChildren(new Option("Все языки", ""), ...languages.map(l => new Option(l, l)));
+  select.value = languages.includes(current) ? current : "";
+}
+
+function setKind(kind) {
+  activeKind = kind;
+  document.querySelectorAll("[data-kind]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.kind === kind)));
+  $("export-label").textContent = {all: "все скрипты", call: "все звонки", chat: "все переписки"}[kind];
+  $("export-txt").href = `/api/export?kind=${kind}&format=txt`;
+  $("export-json").href = `/api/export?kind=${kind}&format=json`;
+  renderList();
+}
+
 function renderList() {
   const container = $("conversation-list");
   const search = $("search").value.trim().toLowerCase();
-  const filtered = allConversations.filter(c => (c.conversation_id || "").toLowerCase().includes(search));
+  const language = $("language-filter").value;
+  const filtered = allConversations.filter(c =>
+    (c.conversation_id || "").toLowerCase().includes(search) &&
+    (activeKind === "all" || kindOf(c) === activeKind) &&
+    (!language || c.language === language));
   container.replaceChildren();
   if (!filtered.length) {
     const empty = document.createElement("div");
-    empty.className = "muted";
-    empty.textContent = allConversations.length ? "Ничего не найдено." : "Пока нет диалогов. Нажмите «Загрузить DEV из API».";
+    empty.className = "muted list-empty";
+    empty.textContent = allConversations.length ? "Ничего не найдено. Измените фильтр." : "Пока нет скриптов. Нажмите «Загрузить DEV из API».";
     container.append(empty);
     return;
   }
   for (const conversation of filtered) {
+    const kind = kindOf(conversation);
+    const item = document.createElement("div");
+    item.className = "list-item" + (conversation.conversation_id === activeConversationId ? " selected" : "");
+    item.setAttribute("role", "listitem");
     const button = document.createElement("button");
     button.type = "button";
-    if (conversation.conversation_id === activeConversationId) button.className = "selected";
+    button.className = "list-open";
+    const icon = document.createElement("span");
+    icon.className = `kind-icon ${kind}`;
+    icon.innerHTML = KIND_ICON[kind];
+    const text = document.createElement("span");
+    text.className = "list-text";
     const title = document.createElement("strong");
     title.textContent = conversation.conversation_id || "Без ID";
     const meta = document.createElement("span");
-    meta.textContent = `${conversation.language || "?"} · ${conversation.channel || "?"} · ${conversation.message_count} реплик`;
-    button.append(title, meta);
+    meta.textContent = `${KIND_LABEL[kind]} · ${conversation.language || "?"} · ${conversation.message_count} реплик`;
+    text.append(title, meta);
+    button.append(icon, text);
     button.addEventListener("click", () => openConversation(conversation.conversation_id));
-    container.append(button);
+    const download = document.createElement("a");
+    download.className = "list-download";
+    download.href = downloadUrl(conversation.conversation_id, "txt");
+    download.setAttribute("download", "");
+    download.title = `Скачать ${conversation.conversation_id} (TXT)`;
+    download.setAttribute("aria-label", download.title);
+    download.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    item.append(button, download);
+    container.append(item);
   }
 }
 
@@ -54,18 +109,24 @@ async function openConversation(conversationId) {
     const conversation = await requestJson(`/api/conversations/${encodeURIComponent(conversationId)}`);
     activeConversationId = conversationId;
     activeConversation = conversation;
-    $("conversation-title").textContent = `Диалог ${conversationId}`;
+    const kind = kindOf(conversation);
+    $("conversation-title").textContent = `${KIND_LABEL[kind]} ${conversationId}`;
     $("conversation-meta").textContent = `${conversation.language || "?"} · ${conversation.channel || "?"} · ${conversation.transcript.length} реплик`;
+    $("empty-state").hidden = true;
+    $("download-actions").hidden = false;
+    $("download-txt").href = downloadUrl(conversationId, "txt");
+    $("download-json").href = downloadUrl(conversationId, "json");
     const messages = $("messages");
     messages.replaceChildren();
     for (const [index, message] of conversation.transcript.entries()) {
       const indexId = `msg-${index}`;
       const block = document.createElement("article");
-      block.className = `message ${message.speaker === "operator" ? "operator" : ""}`;
+      const speaker = String(message.speaker || "").toLowerCase();
+      block.className = `message ${speaker === "operator" ? "operator" : speaker === "bot" ? "bot" : ""}`;
       block.id = indexId;
       const info = document.createElement("div");
       info.className = "info";
-      info.textContent = `${message.speaker || "unknown"} · ${message.timestamp || ""}`;
+      info.textContent = `#${index + 1} · ${message.speaker || "unknown"}${message.timestamp ? " · " + message.timestamp : ""}`;
       const text = document.createElement("p");
       text.textContent = message.text || "";
       block.append(info, text);
@@ -82,6 +143,7 @@ async function openConversation(conversationId) {
       audioArea.append(link);
     }
     renderList();
+    if (window.matchMedia("(max-width: 900px)").matches) $("conversation-title").scrollIntoView({behavior: "smooth", block: "start"});
     await renderAssessment();
     document.dispatchEvent(new CustomEvent("cqa:conversation-opened", {detail: {conversationId}}));
   } catch (error) { notify(`Ошибка открытия диалога: ${error.message}`, "error"); }
@@ -92,6 +154,7 @@ async function refresh() {
   $("api-status").textContent = status.api_configured ? "Настроен" : "Нет ссылки";
   $("count").textContent = String(status.record_count);
   allConversations = await requestJson("/api/conversations");
+  updateKindCounts();
   renderList();
   return status;
 }
@@ -111,9 +174,11 @@ async function importDev() {
 
 $("import-btn").addEventListener("click", importDev);
 $("search").addEventListener("input", renderList);
+$("language-filter").addEventListener("change", renderList);
+document.querySelectorAll("[data-kind]").forEach(b => b.addEventListener("click", () => setKind(b.dataset.kind)));
 refresh()
   .then(status => notify(status.data_loaded
-    ? `Диалоги готовы: ${status.record_count}. Выберите разговор слева.`
+    ? `Диалоги готовы: ${status.record_count}. Выберите скрипт в библиотеке.`
     : "Вставьте API-ссылку в .env, перезапустите сервер и нажмите «Загрузить DEV из API»."))
   .catch(error => notify(`Ошибка подключения к серверу: ${error.message}`, "error"));
 

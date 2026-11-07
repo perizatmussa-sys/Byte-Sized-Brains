@@ -14,7 +14,7 @@ from typing import Any
 import requests
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -120,6 +120,59 @@ def import_dev():
     return {"success": True, "count": len(records), "languages": languages, "channels": channels}
 
 
+def conversation_kind(record: dict[str, Any]) -> str:
+    """«call» для звонков, «chat» для переписки — для фильтра на сайте."""
+    channel = str(record.get("channel", "")).lower()
+    if record.get("audio_url") or any(word in channel for word in ("call", "voice", "phone")):
+        return "call"
+    return "chat"
+
+
+def transcript_as_text(record: dict[str, Any]) -> str:
+    kind = "Звонок" if conversation_kind(record) == "call" else "Переписка"
+    lines = [
+        f"Диалог: {record.get('conversation_id', '')}",
+        f"Тип: {kind} ({record.get('channel') or '?'}) · Язык: {record.get('language') or '?'}",
+        f"Реплик: {len(record.get('transcript', []))}",
+        "",
+    ]
+    for index, message in enumerate(record.get("transcript", []), start=1):
+        stamp = f" [{message.get('timestamp')}]" if message.get("timestamp") else ""
+        lines.append(f"#{index}{stamp} {message.get('speaker', 'unknown')}: {message.get('text', '')}")
+    return "\n".join(lines) + "\n"
+
+
+def download_response(content: str, filename: str, media_type: str) -> Response:
+    return Response(content=content.encode("utf-8"), media_type=f"{media_type}; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@app.get("/api/export")
+def export_conversations(kind: str = "all", format: str = "json"):
+    """Скачать все скрипты (или только звонки / только переписки) одним файлом."""
+    if kind not in ("all", "call", "chat"):
+        raise HTTPException(status_code=400, detail="kind должен быть all, call или chat.")
+    if format not in ("json", "txt"):
+        raise HTTPException(status_code=400, detail="format должен быть json или txt.")
+    records = [r for r in read_saved_records() if kind == "all" or conversation_kind(r) == kind]
+    name = f"cqa-scripts-{kind}"
+    if format == "txt":
+        separator = "\n" + "=" * 60 + "\n\n"
+        return download_response(separator.join(transcript_as_text(r) for r in records), f"{name}.txt", "text/plain")
+    return download_response(json.dumps(records, ensure_ascii=False, indent=2), f"{name}.json", "application/json")
+
+
+@app.get("/api/conversations/{conversation_id}/download")
+def download_conversation(conversation_id: str, format: str = "txt"):
+    if format not in ("json", "txt"):
+        raise HTTPException(status_code=400, detail="format должен быть json или txt.")
+    record = get_conversation(conversation_id)
+    safe_id = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in conversation_id) or "dialog"
+    if format == "txt":
+        return download_response(transcript_as_text(record), f"{safe_id}.txt", "text/plain")
+    return download_response(json.dumps(record, ensure_ascii=False, indent=2), f"{safe_id}.json", "application/json")
+
+
 @app.get("/api/conversations")
 def list_conversations():
     return [
@@ -127,6 +180,7 @@ def list_conversations():
             "conversation_id": record.get("conversation_id"),
             "language": record.get("language"),
             "channel": record.get("channel"),
+            "kind": conversation_kind(record),
             "message_count": len(record.get("transcript", [])),
             "has_audio": bool(record.get("audio_url")),
         }

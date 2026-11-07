@@ -1,56 +1,162 @@
 <!doctype html>
-<html lang="ru">
+<html lang="ru" class="locked">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Byte-Sized-Brains · CQA</title>
+  <title>Byte-Sized-Brains · Контроль качества операторов</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" />
   <link rel="stylesheet" href="/static/style.css" />
   <link rel="stylesheet" href="/static/appeals.css" />
+  <script src="/static/landing.js" defer></script>
   <script src="/static/app.js" defer></script>
   <script src="/static/appeals.js" defer></script>
 </head>
 <body>
-  <header class="header">
-    <div class="wrap head-inner">
-      <div>
-        <span class="eyebrow">FREEDOM BROKER · HACKATHON</span>
-        <h1>Byte-Sized-Brains <span class="pill">CQA</span></h1>
-        <p>Этап 5 · Два AI + апелляции</p>
+  <!-- ЭКРАН 1: лендинг. Страница не прокручивается, пока не нажата кнопка. -->
+  <section id="hero" class="hero" aria-labelledby="hero-title">
+    <nav class="nav wrap" aria-label="Главное меню">
+      <a class="brand" href="#hero" data-home>
+        <span class="brand-mark" aria-hidden="true">B</span>
+        <span>Byte-Sized-Brains</span><span class="pill">CQA</span>
+      </a>
+      <div class="nav-links">
+        <button type="button" class="nav-link" data-enter="how">Как это работает</button>
+        <button type="button" class="nav-link" data-enter="workspace">Скрипты</button>
+        <button type="button" class="nav-link" data-enter="checklist-panel">Чек-лист</button>
       </div>
-      <button type="button" id="import-btn" class="primary">Загрузить DEV из API</button>
+      <button type="button" class="btn btn-light" data-enter="workspace">Попробовать бесплатно</button>
+    </nav>
+
+    <div class="hero-content wrap">
+      <span class="eyebrow"><i aria-hidden="true"></i>FREEDOM BROKER · CQA HACKATHON</span>
+      <h1 id="hero-title">Проверяйте качество работы операторов <span class="grad">с помощью AI.</span></h1>
+      <p class="lead">Выберите звонок или переписку из <strong data-count>65</strong> скриптов — AI оценит разговор по чек-листу из 8 критериев,
+        покажет доказательства в репликах, а вы сможете перепроверить, оспорить и скачать результат.</p>
+      <div class="hero-actions">
+        <button type="button" class="btn btn-primary btn-lg" data-enter="workspace">Попробовать бесплатно</button>
+        <button type="button" class="btn btn-ghost btn-lg" data-enter="how">Как это работает</button>
+      </div>
     </div>
-  </header>
-  <main class="wrap">
-    <div id="notice" role="status" aria-live="polite">Проверяем состояние приложения...</div>
-    <section class="stats" aria-label="Статистика">
-      <article class="stat"><span>Загружено диалогов</span><strong id="count">0</strong></article>
-      <article class="stat"><span>Статус API</span><strong id="api-status">—</strong></article>
-      <article class="stat"><span>Модуль оценки</span><strong>Ручной + AI</strong></article>
-    </section>
-    <section class="layout">
-      <aside class="panel">
-        <h2>Диалоги</h2>
-        <label class="field-label" for="search">Найти диалог по ID</label>
-        <input id="search" placeholder="Например: p1-ru-001" autocomplete="off" />
-        <div id="conversation-list" class="list"></div>
-      </aside>
-      <section class="panel transcript-panel">
-        <h2 id="conversation-title">Выберите диалог</h2>
-        <div id="conversation-meta" class="muted">Здесь появится транскрипт выбранного разговора.</div>
-        <div id="messages" class="messages"></div>
-        <div id="audio-area"></div>
-        <section id="assessment-area" class="assessment"></section>
-        <section id="appeals-panel" class="appeals-panel" aria-live="polite"></section>
-      </section>
-    </section>
-    <section class="panel settings-panel" id="checklist-panel">
-      <div class="panel-heading"><div><h2>Настройка чек-листа</h2><p class="muted">Можно изменять формулировки, типы, веса, шкалы и N/A. Не изменяйте ID существующих критериев без необходимости.</p></div>
-        <button type="button" id="load-checklist" class="secondary">Обновить</button>
+
+    <dl class="hero-stats wrap">
+      <div><dt data-count>65</dt><dd>скриптов звонков и переписок</dd></div>
+      <div><dt>8</dt><dd>критериев чек-листа качества</dd></div>
+      <div><dt>2&nbsp;AI</dt><dd>GroqCloud и Google Gemini</dd></div>
+      <div><dt>0</dt><dd>токенов на повторный просмотр</dd></div>
+    </dl>
+
+    <button type="button" class="scroll-cue" data-enter="how" aria-label="Перейти к содержимому">
+      <span>Начать</span>
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </section>
+
+  <!-- ЭКРАН 2: рабочая часть -->
+  <div id="app">
+    <header class="topbar">
+      <div class="wrap topbar-inner">
+        <a class="brand" href="#hero" data-home>
+          <span class="brand-mark" aria-hidden="true">B</span>
+          <span>Byte-Sized-Brains</span><span class="pill">CQA</span>
+        </a>
+        <nav class="nav-links" aria-label="Разделы">
+          <button type="button" class="nav-link" data-home>Главная</button>
+          <button type="button" class="nav-link" data-goto="workspace">Скрипты</button>
+          <button type="button" class="nav-link" data-goto="checklist-panel">Чек-лист</button>
+        </nav>
+        <button type="button" id="import-btn" class="btn btn-light btn-sm">Загрузить DEV из API</button>
       </div>
-      <div id="criteria-editor"></div>
-      <div class="actions"><button type="button" id="add-criterion" class="secondary">+ Новый критерий</button><button type="button" id="save-checklist" class="primary">Сохранить чек-лист</button></div>
+    </header>
+
+    <section id="how" class="how wrap" aria-labelledby="how-title">
+      <span class="eyebrow"><i aria-hidden="true"></i>КАК ЭТО РАБОТАЕТ</span>
+      <h2 id="how-title">Три шага до оценки качества</h2>
+      <ol class="steps">
+        <li><span class="step-num">01</span><h3>Выберите скрипт</h3><p>Отфильтруйте звонки или переписки, найдите нужный диалог по ID и откройте транскрипт.</p></li>
+        <li><span class="step-num">02</span><h3>Оцените с AI</h3><p>GroqCloud или Gemini проверят разговор по чек-листу, а Python пересчитает итоговый балл.</p></li>
+        <li><span class="step-num">03</span><h3>Проверьте и скачайте</h3><p>Сравните с ручной оценкой, подайте апелляцию по критерию и скачайте скрипты в TXT или JSON.</p></li>
+      </ol>
     </section>
-    <footer>Этап 5: AI-оценки, апелляции и решения проверяющего сохраняются отдельно. Проверка человеческого решения не требует нового AI-запроса.</footer>
-  </main>
+
+    <main id="workspace" class="wrap">
+      <div id="notice" role="status" aria-live="polite">Проверяем состояние приложения...</div>
+
+      <section class="stats" aria-label="Статистика">
+        <article class="stat"><span>Загружено скриптов</span><strong id="count">0</strong></article>
+        <article class="stat"><span>Звонки / переписки</span><strong id="kind-split">—</strong></article>
+        <article class="stat"><span>Статус API</span><strong id="api-status">—</strong></article>
+        <article class="stat"><span>Модуль оценки</span><strong>Ручной + AI</strong></article>
+      </section>
+
+      <section class="layout">
+        <aside class="panel library" aria-labelledby="library-title">
+          <div class="panel-heading">
+            <h2 id="library-title">Библиотека скриптов</h2>
+          </div>
+          <div class="segmented" role="tablist" aria-label="Тип скрипта">
+            <button type="button" role="tab" data-kind="all" aria-selected="true">Все <span data-kind-count="all">0</span></button>
+            <button type="button" role="tab" data-kind="call" aria-selected="false">Звонки <span data-kind-count="call">0</span></button>
+            <button type="button" role="tab" data-kind="chat" aria-selected="false">Сообщения <span data-kind-count="chat">0</span></button>
+          </div>
+          <div class="filters">
+            <label class="search-field">
+              <span class="sr-only">Найти скрипт по ID</span>
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              <input id="search" placeholder="Поиск по ID, например p1-ru-001" autocomplete="off" />
+            </label>
+            <label class="sr-only" for="language-filter">Язык</label>
+            <select id="language-filter" aria-label="Язык"><option value="">Все языки</option></select>
+          </div>
+          <div id="conversation-list" class="list" role="list"></div>
+          <div class="export">
+            <span class="muted small">Скачать <span id="export-label">все скрипты</span>:</span>
+            <a id="export-txt" class="btn btn-ghost btn-sm" href="/api/export?kind=all&format=txt" download>TXT</a>
+            <a id="export-json" class="btn btn-ghost btn-sm" href="/api/export?kind=all&format=json" download>JSON</a>
+          </div>
+        </aside>
+
+        <section class="panel transcript-panel" aria-labelledby="conversation-title">
+          <div class="transcript-head">
+            <div>
+              <h2 id="conversation-title">Выберите скрипт</h2>
+              <div id="conversation-meta" class="muted">Откройте звонок или переписку слева — здесь появятся транскрипт, AI-оценка и апелляции.</div>
+            </div>
+            <div id="download-actions" class="download-actions" hidden>
+              <a id="download-txt" class="btn btn-ghost btn-sm" href="#" download>
+                <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                TXT</a>
+              <a id="download-json" class="btn btn-ghost btn-sm" href="#" download>
+                <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                JSON</a>
+            </div>
+          </div>
+          <div id="empty-state" class="empty-state">
+            <div class="empty-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="28" height="28"><path d="M4 5h16v11H8l-4 4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8 9h8M8 12h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            </div>
+            <p>Скрипт ещё не выбран</p>
+          </div>
+          <div id="messages" class="messages"></div>
+          <div id="audio-area"></div>
+          <section id="assessment-area" class="assessment"></section>
+          <section id="appeals-panel" class="appeals-panel" aria-live="polite"></section>
+        </section>
+      </section>
+
+      <details class="panel settings-panel" id="checklist-panel">
+        <summary>
+          <div><h2>Настройка чек-листа</h2><p class="muted">Формулировки, типы, веса, шкалы и N/A. Не изменяйте ID существующих критериев без необходимости.</p></div>
+          <span class="chev" aria-hidden="true"></span>
+        </summary>
+        <div class="actions start"><button type="button" id="load-checklist" class="secondary">Обновить</button></div>
+        <div id="criteria-editor"></div>
+        <div class="actions"><button type="button" id="add-criterion" class="secondary">+ Новый критерий</button><button type="button" id="save-checklist" class="primary">Сохранить чек-лист</button></div>
+      </details>
+
+      <footer>AI-оценки, апелляции и решения проверяющего сохраняются отдельно. Пересмотр человеком не требует нового AI-запроса.</footer>
+    </main>
+  </div>
 </body>
 </html>

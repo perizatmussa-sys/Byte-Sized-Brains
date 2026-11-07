@@ -1,23 +1,24 @@
-/* Этап 5 — виджеты апелляций, не затрагиваем остальной дизайн */
-.appeals-panel { border-top: 1px solid #dbe5e1; margin-top: 28px; padding-top: 20px; }
+/* Этап 5 — апелляции в тёмной теме */
+.appeals-panel:empty { display: none; }
+.appeals-panel { border-top: 1px solid var(--line); margin-top: 28px; padding-top: 22px; }
 .appeals-panel h2 { margin: 0 0 7px; }
 .appeals-panel h3 { margin: 0 0 12px; font-size: 16px; }
-.appeals-box { background: #f7faf9; border: 1px solid #dbe5e1; border-radius: 12px; padding: 16px; margin: 15px 0; }
+.appeals-box { background: rgba(0, 0, 0, .18); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin: 15px 0; }
 .appeals-form { display: grid; gap: 11px; }
-.appeal-field { display: grid; gap: 5px; font-size: 13px; color: #61736c; }
+.appeal-field { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .appeal-field textarea { min-height: 68px; }
 .appeal-field[hidden] { display: none; }
-.appeals-hint { color: #456357; font-size: 13px; margin: 6px 0; }
-.appeal-inline-msg { font-size: 13px; color: #9b2020; margin: 4px 0; }
+.appeals-hint { color: var(--text-2); font-size: 13px; margin: 6px 0; }
+.appeal-inline-msg { font-size: 13px; color: var(--err); margin: 4px 0; }
 .appeals-form button.primary { justify-self: start; }
 .appeal-history { margin-top: 24px; }
-.appeal-entry { border: 1px solid #d2e4da; background: white; padding: 15px; border-radius: 12px; margin: 12px 0; overflow-wrap: anywhere; }
-.appeal-entry p { margin: 9px 0; font-size: 13px; }
+.appeal-entry { border: 1px solid var(--line); background: rgba(255, 255, 255, .03); padding: 16px; border-radius: 14px; margin: 12px 0; overflow-wrap: anywhere; }
+.appeal-entry p { margin: 9px 0; font-size: 13px; color: var(--text-2); }
 .appeal-entry-head { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: center; }
-.appeal-state { font-size: 11px; padding: 3px 8px; border-radius: 40px; font-weight: 700; }
-.appeal-state.pending { background: #fff0ce; color: #865c00; }
-.appeal-state.resolved { background: #e4f5e8; color: #136537; }
+.appeal-state { font-size: 11px; padding: 3px 9px; border-radius: 40px; font-weight: 700; }
+.appeal-state.pending { background: rgba(255, 198, 92, .15); color: var(--warn); }
+.appeal-state.resolved { background: rgba(61, 220, 151, .14); color: var(--ok); }
 .appeal-entry h4 { margin: 16px 0 9px; }
-.appeal-link { display: inline-block; margin: 5px 0; padding: 3px 0; background: none; border: 0; color: #17745e; text-decoration: underline; text-align: left; }
-.appeal-final { display: block; color: #13593b; margin: 8px 0; }
+.appeal-link { display: inline-block; margin: 5px 0; padding: 3px 0; background: none; border: 0; color: var(--teal); text-decoration: underline; text-underline-offset: 3px; text-align: left; }
+.appeal-final { display: block; color: var(--ok); margin: 8px 0; }
 .reviewer-form { margin-top: 12px; }
