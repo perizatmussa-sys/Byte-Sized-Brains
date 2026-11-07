@@ -1,0 +1,19 @@
+# Секретная ссылка API и ключи
+.env
+.env.*
+!.env.example
+
+# Локальные данные из API (не публикуем клиентские диалоги)
+data/*
+!data/.gitkeep
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Editors / system
+.vscode/
+.DS_Store
+Thumbs.db

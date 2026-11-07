@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Byte-Sized-Brains · CQA</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <header class="header">
+    <div class="wrap head-inner">
+      <div>
+        <span class="eyebrow">FREEDOM BROKER · HACKATHON</span>
+        <h1>Byte-Sized-Brains <span class="pill">CQA</span></h1>
+        <p>Этап 1 · Импорт и просмотр диалогов</p>
+      </div>
+      <button type="button" id="import-btn" class="primary">Загрузить DEV из API</button>
+    </div>
+  </header>
+  <main class="wrap">
+    <div id="notice" role="status" aria-live="polite">Проверяем состояние приложения...</div>
+    <section class="stats" aria-label="Статистика">
+      <article class="stat"><span>Загружено диалогов</span><strong id="count">0</strong></article>
+      <article class="stat"><span>Статус API</span><strong id="api-status">—</strong></article>
+      <article class="stat"><span>AI-оценка</span><strong>Следующий этап</strong></article>
+    </section>
+    <section class="layout">
+      <aside class="panel">
+        <h2>Диалоги</h2>
+        <label class="field-label" for="search">Найти диалог по ID</label>
+        <input id="search" placeholder="Например: p1-ru-001" autocomplete="off" />
+        <div id="conversation-list" class="list"></div>
+      </aside>
+      <section class="panel transcript-panel">
+        <h2 id="conversation-title">Выберите диалог</h2>
+        <div id="conversation-meta" class="muted">Здесь появится транскрипт выбранного разговора.</div>
+        <div id="messages" class="messages"></div>
+        <div id="audio-area"></div>
+      </section>
+    </section>
+    <footer>Это начальный этап проекта. Следующие функции: чек-лист, AI-оценка, N/A, доказательства, апелляции.</footer>
+  </main>
+</body>
+</html>
