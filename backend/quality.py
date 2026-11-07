@@ -175,7 +175,8 @@ def evaluate(conversation: dict[str, Any], configuration: dict[str, Any], answer
             "checklist_version": configuration["version"], "criteria": out,
             "score": score, "applicable_weight": applicable_weight, "sections": section_scores,
             "gross_violation": bool(critical), "gross_violation_criteria": [c["name"] for c in critical],
-            "created_at": datetime.now(timezone.utc).isoformat()}
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "checklist_snapshot": copy.deepcopy(configuration)}
 
 
 def saved_evaluations() -> dict[str, Any]:

@@ -1,9 +1,9 @@
-"""Этап 1 CQA: безопасно загрузить DEV из API и показать диалоги в браузере.
+"""CQA: загрузка DEV, ручные оценки и AI-оценки.
 
 Запуск из корня репозитория:
     python -m uvicorn backend.main:app --reload
 
-В этом этапе AI-оценка ещё НЕ реализована.
+Бесплатная AI-оценка через GroqCloud подключается с GROQ_API_KEY в .env.
 """
 
 import json
@@ -179,3 +179,67 @@ def submit_manual_evaluation(conversation_id: str, payload: dict[str, Any]):
     result["mode"] = "manual"  # Нельзя выдавать ручную оценку за оценку AI.
     save_evaluation(result)
     return result
+
+
+# --------------------------------------------------
+# Этап 4: два AI-провайдера, сравнение и резерв.
+# --------------------------------------------------
+from fastapi import Query
+from .ai import provider_status, saved_for_conversation, assess_one, compare_models
+
+
+def find_conversation_or_404(conversation_id: str) -> dict[str, Any]:
+    item = next((c for c in read_saved_records() if c.get("conversation_id") == conversation_id), None)
+    if item is None:
+        raise HTTPException(404, "Диалог не найден.")
+    return item
+
+
+@app.get("/api/ai/status")
+def ai_status():
+    return provider_status()
+
+
+@app.get("/api/ai/evaluations/{conversation_id}")
+def get_ai_evaluation(conversation_id: str):
+    result = saved_for_conversation(conversation_id)
+    if not result:
+        raise HTTPException(404, "Этот диалог ещё не оценён AI.")
+    return result  # словарь {groq: оценка, gemini: оценка}
+
+
+@app.post("/api/ai/evaluations/{conversation_id}")
+def submit_ai_evaluation(conversation_id: str, provider: str = Query("auto"), force: bool = Query(False)):
+    conversation = find_conversation_or_404(conversation_id)
+    return assess_one(conversation, checklist(), provider=provider, force=force)
+
+
+@app.post("/api/ai/compare/{conversation_id}")
+def compare_ai_evaluations(conversation_id: str, force: bool = Query(False)):
+    conversation = find_conversation_or_404(conversation_id)
+    return compare_models(conversation, checklist(), force=force)
+
+
+# --------------------------------------------------
+# Этап 5: апелляции и окончательный пересмотр человеком.
+# Оригинальные ручные / AI-оценки не перезаписываются.
+# --------------------------------------------------
+from .appeals import create_appeal, list_appeals, decide_appeal
+
+
+@app.get("/api/appeals")
+def get_appeals(conversation_id: str = Query(..., min_length=1)):
+    find_conversation_or_404(conversation_id)
+    return list_appeals(conversation_id)
+
+
+@app.post("/api/appeals")
+def new_appeal(payload: dict[str, Any]):
+    conversation_id = str(payload.get("conversation_id", "")).strip()
+    find_conversation_or_404(conversation_id)
+    return create_appeal(payload)
+
+
+@app.post("/api/appeals/{appeal_id}/decision")
+def submit_appeal_decision(appeal_id: str, payload: dict[str, Any]):
+    return decide_appeal(appeal_id, payload, find_conversation_or_404)

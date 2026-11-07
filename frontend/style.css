@@ -72,3 +72,17 @@ button.link-button { color: var(--green2); border: 0; background: transparent; p
 .result-line { padding: 10px 0; border-top: 1px solid #d2e9db; }
 .message.flash { outline: 3px solid #e4af37; background: #fff2cb; }
 @media(max-width: 780px) { .editor-grid { grid-template-columns: 1fr; } }
+
+/* Этап 3 */
+.ai-panel { margin: 18px 0 22px; border: 1px solid #8eb8a1; background: #f2faf5; border-radius: 12px; padding: 16px; }
+.ai-panel h3 { margin: 0 0 8px; }
+.ai-panel > button { margin: 8px 0 12px; }
+
+/* Этап 4 — простое сравнение AI */
+.ai-controls {display:flex;flex-direction:column;gap:12px;margin:12px 0 18px;}
+.ai-controls .actions {display:flex;flex-wrap:wrap;gap:10px;}
+.ai-results {display:grid;gap:12px;}
+.compare-panel {border:1px solid #98b9ad;border-radius:12px;padding:14px;background:#f4faf7;overflow-x:auto;}
+.compare-table {width:100%;border-collapse:collapse;font-size:14px;}
+.compare-table th,.compare-table td {text-align:left;padding:8px 6px;border-bottom:1px solid #d9e5df;}
+.compare-table th {white-space:nowrap;}

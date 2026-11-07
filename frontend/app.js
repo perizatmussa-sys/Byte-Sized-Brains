@@ -83,6 +83,7 @@ async function openConversation(conversationId) {
     }
     renderList();
     await renderAssessment();
+    document.dispatchEvent(new CustomEvent("cqa:conversation-opened", {detail: {conversationId}}));
   } catch (error) { notify(`Ошибка открытия диалога: ${error.message}`, "error"); }
 }
 
@@ -230,7 +231,7 @@ async function renderAssessment() {
   if (!activeConversation) return;
   if (!currentChecklist) currentChecklist = await requestJson("/api/checklist");
   area.append(node("h2", "Оценка диалога"));
-  area.append(node("p", "Ручной тест расчёта: выберите ответы, объяснения и реплики. AI будет подключён следующим этапом.", "muted"));
+  area.append(node("p", "Сравните ручную оценку и вывод модели. Python сам проверит правила и посчитает итог.", "muted"));
   let lastResult = null;
   try { lastResult = await requestJson(`/api/evaluations/${encodeURIComponent(activeConversationId)}`); }
   catch (e) { if (!String(e.message).includes("ещё не оценён")) notify(`Оценка: ${e.message}`, "error"); }
@@ -239,6 +240,103 @@ async function renderAssessment() {
     renderResult(resultContainer, lastResult);
     area.append(resultContainer);
   }
+  // ЭТАП 4. Два AI с кешем: Groq / Gemini / авто (резерв) / сравнение.
+  const aiPanel = node("div", "", "ai-panel");
+  aiPanel.append(node("h3", "Автоматическая AI-оценка"));
+  const aiStatus = node("p", "Проверяем ключи...", "muted small");
+  aiPanel.append(aiStatus);
+
+  const aiControls = node("div", "", "ai-controls");
+  const selectLabel = node("label", "Выберите режим: ", "edit-field");
+  const providerSelect = document.createElement("select");
+  const modes = [["auto", "Авто: Groq → Gemini при ошибке"],
+                 ["groq", "Только GroqCloud · Qwen"],
+                 ["gemini", "Только Gemini · Flash-Lite"]];
+  modes.forEach(([value,label]) => {const option=node("option",label);option.value=value;providerSelect.append(option);});
+  selectLabel.append(providerSelect);
+  aiControls.append(selectLabel);
+
+  const freshLabel = node("label", "", "checkline");
+  const forceCheckbox = document.createElement("input");
+  forceCheckbox.type = "checkbox";
+  freshLabel.append(forceCheckbox, node("span", "Оценить заново (расходует токены)"));
+  aiControls.append(freshLabel);
+
+  const buttons = node("div", "", "actions");
+  const aiButton = node("button", "Оценить с AI", "primary"); aiButton.type="button"; aiButton.disabled=true;
+  const compareButton = node("button", "Сравнить Groq и Gemini", "secondary");
+  compareButton.type="button"; compareButton.disabled=true;
+  buttons.append(aiButton, compareButton);
+  aiControls.append(buttons);
+  aiPanel.append(aiControls);
+  const aiResultBox = node("div", "", "ai-results");
+  aiPanel.append(aiResultBox);
+  area.append(aiPanel);
+  const aiConversationId = activeConversationId;
+
+  async function displayStored() {
+    aiResultBox.replaceChildren();
+    let results;
+    try {results=await requestJson(`/api/ai/evaluations/${encodeURIComponent(aiConversationId)}`);}
+    catch (error) {
+      if (String(error.message).includes("ещё не оценён AI")) return;
+      throw error;
+    }
+    renderCompare(aiResultBox, results);
+    document.dispatchEvent(new CustomEvent("cqa:assessment-changed", {detail: {conversationId: aiConversationId}}));
+    for (const id of ["groq", "gemini"]) {
+      if (results[id]) {
+        const box=node("div", "", "result-card");
+        renderResult(box, results[id]);
+        aiResultBox.append(box);
+      }
+    }
+  }
+
+  try {
+    const status=await requestJson("/api/ai/status");
+    const available=(status.providers || []).filter(p=>p.configured);
+    aiStatus.textContent = available.length
+      ? `Подключено: ${available.map(p=>p.name+" ("+p.model+")").join("; ")}. Оценки сохраняются; повторный просмотр не тратит токены.`
+      : "Нет API-ключей. Добавьте GROQ_API_KEY и/или GEMINI_API_KEY в .env и перезапустите сервер.";
+    aiButton.disabled=!available.length;
+    compareButton.disabled=!available.length;
+    await displayStored();
+  } catch(error) {aiStatus.textContent=`Не удалось проверить AI: ${error.message}`;}
+
+  aiButton.addEventListener("click", async()=>{
+    if (activeConversationId!==aiConversationId) return;
+    aiButton.disabled=true; compareButton.disabled=true;
+    aiButton.textContent="AI анализирует...";
+    try {
+      const provider=encodeURIComponent(providerSelect.value);
+      const force=forceCheckbox.checked ? "true" : "false";
+      const result=await requestJson(`/api/ai/evaluations/${encodeURIComponent(aiConversationId)}?provider=${provider}&force=${force}`, {method:"POST"});
+      const fromCache=result.cached?" (из сохранённой оценки, без нового запроса)":"";
+      const fallback=result.fallback_used?"; использован резервный AI":"";
+      notify(`Готово: ${result.provider}, ${result.score ?? "N/A"}/100${fromCache}${fallback}.`,"success");
+      await displayStored();
+    } catch(error) {notify(`AI: ${error.message}`,"error");}
+    finally {aiButton.disabled=false; compareButton.disabled=false; aiButton.textContent="Оценить с AI";}
+  });
+
+  compareButton.addEventListener("click", async()=>{
+    if (activeConversationId!==aiConversationId) return;
+    aiButton.disabled=true; compareButton.disabled=true;
+    compareButton.textContent="Сравниваем...";
+    try {
+      const force=forceCheckbox.checked ? "true" : "false";
+      const comparison=await requestJson(`/api/ai/compare/${encodeURIComponent(aiConversationId)}?force=${force}`, {method:"POST"});
+      await displayStored();
+      const errors=Object.values(comparison.errors||{}).join("; ");
+      notify(errors?`Сравнение частично готово: ${errors}`:
+        `Обе оценки готовы. Разница итогов: ${comparison.score_difference ?? "не рассчитывается"} балла.`,errors?"error":"success");
+    } catch(error) {notify(`Сравнение: ${error.message}`,"error");}
+    finally {aiButton.disabled=false; compareButton.disabled=false; compareButton.textContent="Сравнить Groq и Gemini";}
+  });
+
+  area.append(node("h3", "Ручная оценка"));
+  area.append(node("p", "Можно оставить собственную оценку для сравнения с AI.", "muted small"));
   const form = node("form", "", "score-form");
   const controls = {};
   for (const criterion of currentChecklist.criteria) {
@@ -287,16 +385,43 @@ async function renderAssessment() {
       });
       notify(`Оценка сохранена: ${result.score == null ? "не рассчитана" : result.score + "/100"}.`, "success");
       await renderAssessment();
+      document.dispatchEvent(new CustomEvent("cqa:assessment-changed", {detail: {conversationId: activeConversationId}}));
     } catch (error) {notify(`Ошибка оценки: ${error.message}`, "error");}
     finally {submit.disabled = false;}
   });
   area.append(form);
 }
 
+function renderCompare(parent, results) {
+  if (!results.groq || !results.gemini) return;
+  const groq=results.groq, gemini=results.gemini;
+  const comparison=node("div", "", "compare-panel");
+  comparison.append(node("h3", "Сравнение двух AI"));
+  comparison.append(node("p", `Итог Groq: ${groq.score ?? "N/A"}/100 · Gemini: ${gemini.score ?? "N/A"}/100. Это две независимые оценки, не окончательная истина.`,"muted small"));
+  const table=node("table", "", "compare-table");
+  const head=node("tr");
+  ["Критерий","Groq","Gemini"].forEach(x=>head.append(node("th",x)));
+  table.append(head);
+  for(const c of groq.criteria||[]) {
+    const match=(gemini.criteria||[]).find(g=>g.id===c.id);
+    const row=node("tr");
+    [c.name,String(c.value),match?String(match.value):"—"].forEach(v=>row.append(node("td",v)));
+    table.append(row);
+  }
+  comparison.append(table);
+  parent.append(comparison);
+}
+
 function renderResult(parent, result) {
   const score = result.score == null ? "Нет применимых критериев" : `${Number(result.score).toFixed(2)} / 100`;
-  parent.append(node("h3", `Сохранённая оценка: ${score}`));
-  parent.append(node("p", `Режим: ручной · Чек-лист версия ${result.checklist_version} · Грубая ошибка: ${result.gross_violation ? "ДА" : "нет"}`, "muted"));
+  const isAi = result.mode === "ai";
+  const aiName = result.provider === "groq" ? "GroqCloud" : result.provider === "gemini" ? "Google Gemini" : "AI";
+  parent.append(node("h3", `${isAi ? aiName + " — AI-оценка" : "Ручная оценка"}: ${score}`));
+  parent.append(node("p", `Режим: ${isAi ? "AI" : "ручной"}${isAi ? " · Модель: " + (result.model || "?") : ""} · Чек-лист версия ${result.checklist_version} · Грубая ошибка: ${result.gross_violation ? "ДА" : "нет"}`, "muted"));
+  if (isAi && result.usage) {
+    const u=result.usage;
+    parent.append(node("p", `Токены: вход ${u.input_tokens ?? "—"}, выход ${u.output_tokens ?? "—"}, всего ${u.total_tokens ?? "—"}.`,"muted small"));
+  }
   const sections = Object.entries(result.sections || {}).map(([k,v]) => `${k}: ${v}/100`).join(" · ");
   if (sections) parent.append(node("p", sections, "small"));
   for (const item of result.criteria) {

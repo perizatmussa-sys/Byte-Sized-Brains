@@ -1,0 +1,23 @@
+/* Этап 5 — виджеты апелляций, не затрагиваем остальной дизайн */
+.appeals-panel { border-top: 1px solid #dbe5e1; margin-top: 28px; padding-top: 20px; }
+.appeals-panel h2 { margin: 0 0 7px; }
+.appeals-panel h3 { margin: 0 0 12px; font-size: 16px; }
+.appeals-box { background: #f7faf9; border: 1px solid #dbe5e1; border-radius: 12px; padding: 16px; margin: 15px 0; }
+.appeals-form { display: grid; gap: 11px; }
+.appeal-field { display: grid; gap: 5px; font-size: 13px; color: #61736c; }
+.appeal-field textarea { min-height: 68px; }
+.appeal-field[hidden] { display: none; }
+.appeals-hint { color: #456357; font-size: 13px; margin: 6px 0; }
+.appeal-inline-msg { font-size: 13px; color: #9b2020; margin: 4px 0; }
+.appeals-form button.primary { justify-self: start; }
+.appeal-history { margin-top: 24px; }
+.appeal-entry { border: 1px solid #d2e4da; background: white; padding: 15px; border-radius: 12px; margin: 12px 0; overflow-wrap: anywhere; }
+.appeal-entry p { margin: 9px 0; font-size: 13px; }
+.appeal-entry-head { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: center; }
+.appeal-state { font-size: 11px; padding: 3px 8px; border-radius: 40px; font-weight: 700; }
+.appeal-state.pending { background: #fff0ce; color: #865c00; }
+.appeal-state.resolved { background: #e4f5e8; color: #136537; }
+.appeal-entry h4 { margin: 16px 0 9px; }
+.appeal-link { display: inline-block; margin: 5px 0; padding: 3px 0; background: none; border: 0; color: #17745e; text-decoration: underline; text-align: left; }
+.appeal-final { display: block; color: #13593b; margin: 8px 0; }
+.reviewer-form { margin-top: 12px; }
