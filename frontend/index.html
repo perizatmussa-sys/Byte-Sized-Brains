@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Byte-Sized-Brains · CQA</title>
   <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/appeals.css" />
   <script src="/static/app.js" defer></script>
+  <script src="/static/appeals.js" defer></script>
 </head>
 <body>
   <header class="header">
@@ -13,7 +15,7 @@
       <div>
         <span class="eyebrow">FREEDOM BROKER · HACKATHON</span>
         <h1>Byte-Sized-Brains <span class="pill">CQA</span></h1>
-        <p>Этап 1 · Импорт и просмотр диалогов</p>
+        <p>Этап 5 · Два AI + апелляции</p>
       </div>
       <button type="button" id="import-btn" class="primary">Загрузить DEV из API</button>
     </div>
@@ -23,7 +25,7 @@
     <section class="stats" aria-label="Статистика">
       <article class="stat"><span>Загружено диалогов</span><strong id="count">0</strong></article>
       <article class="stat"><span>Статус API</span><strong id="api-status">—</strong></article>
-      <article class="stat"><span>AI-оценка</span><strong>Следующий этап</strong></article>
+      <article class="stat"><span>Модуль оценки</span><strong>Ручной + AI</strong></article>
     </section>
     <section class="layout">
       <aside class="panel">
@@ -37,9 +39,18 @@
         <div id="conversation-meta" class="muted">Здесь появится транскрипт выбранного разговора.</div>
         <div id="messages" class="messages"></div>
         <div id="audio-area"></div>
+        <section id="assessment-area" class="assessment"></section>
+        <section id="appeals-panel" class="appeals-panel" aria-live="polite"></section>
       </section>
     </section>
-    <footer>Это начальный этап проекта. Следующие функции: чек-лист, AI-оценка, N/A, доказательства, апелляции.</footer>
+    <section class="panel settings-panel" id="checklist-panel">
+      <div class="panel-heading"><div><h2>Настройка чек-листа</h2><p class="muted">Можно изменять формулировки, типы, веса, шкалы и N/A. Не изменяйте ID существующих критериев без необходимости.</p></div>
+        <button type="button" id="load-checklist" class="secondary">Обновить</button>
+      </div>
+      <div id="criteria-editor"></div>
+      <div class="actions"><button type="button" id="add-criterion" class="secondary">+ Новый критерий</button><button type="button" id="save-checklist" class="primary">Сохранить чек-лист</button></div>
+    </section>
+    <footer>Этап 5: AI-оценки, апелляции и решения проверяющего сохраняются отдельно. Проверка человеческого решения не требует нового AI-запроса.</footer>
   </main>
 </body>
 </html>

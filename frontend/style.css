@@ -40,3 +40,49 @@ input:focus { outline: 2px solid #8ac5ad; }
 #audio-area a { color: var(--green2); font-weight: 700; }
 footer { color: var(--muted); margin: 25px 0; font-size: 13px; }
 @media(max-width: 780px) { .layout { grid-template-columns: 1fr; } .stats { grid-template-columns: 1fr; } .panel { min-height: 0; } }
+
+/* Этап 2 */
+.assessment { margin-top: 28px; border-top: 1px solid var(--line); padding-top: 20px; }
+.assessment h2 { margin: 0 0 8px; }
+.settings-panel { margin-top: 20px; }
+.panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.panel-heading h2 { margin-bottom: 5px; }
+.panel-heading p { margin-top: 0; }
+.criterion-editor { background: #f8faf9; border: 1px solid var(--line); border-radius: 11px; padding: 16px; margin: 13px 0; }
+.editor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 12px 0; }
+.edit-field { display: grid; gap: 5px; margin: 8px 0; font-size: 13px; color: var(--muted); }
+.edit-field span { display: block; }
+textarea, select { width: 100%; padding: 10px; font: inherit; color: #142d25; background: white; border: 1px solid #cbd8d2; border-radius: 8px; }
+textarea { min-height: 65px; resize: vertical; }
+.checkline { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+.checkline input { width: auto; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 15px; justify-content: flex-end; }
+button.secondary { background: white; border: 1px solid #85b7a1; border-radius: 9px; padding: 10px 15px; color: var(--green); font-weight: 700; }
+button.danger-outline { border: 1px solid #dbb0b0; color: #a12020; background: white; border-radius: 7px; padding: 5px 10px; font-size: 13px; }
+button.link-button { color: var(--green2); border: 0; background: transparent; padding: 4px 0; text-decoration: underline; }
+.small { font-size: 12px; }
+.score-criterion { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin: 14px 0; display: grid; gap: 8px; }
+.score-criterion legend { font-weight: 700; padding: 0 5px; }
+.score-criterion p { margin: 0; }
+.score-criterion textarea { min-height: 52px; }
+.score-form button.primary { margin-top: 8px; }
+.result-card { border: 1px solid #8fc3a9; border-radius: 12px; background: #f3faf6; padding: 14px; margin: 17px 0; }
+.result-card h3 { margin: 0 0 6px; }
+.result-card p { margin: 6px 0; }
+.result-line { padding: 10px 0; border-top: 1px solid #d2e9db; }
+.message.flash { outline: 3px solid #e4af37; background: #fff2cb; }
+@media(max-width: 780px) { .editor-grid { grid-template-columns: 1fr; } }
+
+/* Этап 3 */
+.ai-panel { margin: 18px 0 22px; border: 1px solid #8eb8a1; background: #f2faf5; border-radius: 12px; padding: 16px; }
+.ai-panel h3 { margin: 0 0 8px; }
+.ai-panel > button { margin: 8px 0 12px; }
+
+/* Этап 4 — простое сравнение AI */
+.ai-controls {display:flex;flex-direction:column;gap:12px;margin:12px 0 18px;}
+.ai-controls .actions {display:flex;flex-wrap:wrap;gap:10px;}
+.ai-results {display:grid;gap:12px;}
+.compare-panel {border:1px solid #98b9ad;border-radius:12px;padding:14px;background:#f4faf7;overflow-x:auto;}
+.compare-table {width:100%;border-collapse:collapse;font-size:14px;}
+.compare-table th,.compare-table td {text-align:left;padding:8px 6px;border-bottom:1px solid #d9e5df;}
+.compare-table th {white-space:nowrap;}
