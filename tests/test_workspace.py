@@ -19,6 +19,7 @@ class WorkspaceTests(unittest.TestCase):
             patch.object(quality, "CONFIG_FILE", folder / "checklist.json"),
             patch.object(ai, "AI_RESULTS_FILE", folder / "ai_evaluations.json"),
             patch.object(main, "DATA_FILE", folder / "dev_records.json"),
+            patch.object(main, "CUSTOM_FILE", folder / "custom_records.json"),
         ]
         for item in self.patchers:
             item.start()

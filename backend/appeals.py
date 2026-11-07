@@ -100,29 +100,77 @@ def _same_base(a: dict[str, Any], b: dict[str, Any]) -> bool:
             and a.get("base_created_at") == b.get("base_created_at"))
 
 
+def appeal_items(appeal: dict[str, Any]) -> list[dict[str, Any]]:
+    """Критерии апелляции. Старые записи (один критерий) приводятся к списку."""
+    items = appeal.get("items")
+    if isinstance(items, list) and items:
+        return items
+    return [{"criterion_id": appeal.get("criterion_id"), "criterion_name": appeal.get("criterion_name"),
+             "comment": appeal.get("comment"), "decision": appeal.get("decision")}]
+
+
+def _with_items(appeal: dict[str, Any]) -> dict[str, Any]:
+    out = dict(appeal)
+    out["items"] = appeal_items(appeal)
+    return out
+
+
 def list_appeals(conversation_id: str) -> list[dict[str, Any]]:
-    return [a for a in _load() if a.get("conversation_id") == conversation_id][::-1]
+    return [_with_items(a) for a in _load() if a.get("conversation_id") == conversation_id][::-1]
+
+
+def get_appeal(appeal_id: str) -> dict[str, Any]:
+    item = next((a for a in _load() if a.get("id") == appeal_id), None)
+    if item is None:
+        raise HTTPException(404, "Апелляция не найдена.")
+    return _with_items(item)
 
 
 def create_appeal(payload: dict[str, Any]) -> dict[str, Any]:
+    """Одна апелляция может оспаривать несколько критериев одной оценки.
+
+    Новый формат: {"items": [{"criterion_id", "comment"}, ...], "comment": общий комментарий}.
+    Старый формат с одним criterion_id и comment тоже принимается.
+    """
     conversation_id = str(payload.get("conversation_id", "")).strip()
     source = str(payload.get("source", "")).strip()
-    criterion_id = str(payload.get("criterion_id", "")).strip()
-    comment = _nonempty(payload.get("comment"), "Комментарий к апелляции")
     if not conversation_id:
         raise HTTPException(422, "Выберите диалог.")
+    raw_items = payload.get("items")
+    if raw_items is None:
+        raw_items = [{"criterion_id": payload.get("criterion_id"), "comment": payload.get("comment")}]
+    if not isinstance(raw_items, list) or not raw_items:
+        raise HTTPException(422, "Выберите хотя бы один критерий.")
 
     base = _source_result(conversation_id, source)
-    _target_row(base, criterion_id)
     # Прежде чем принимать спор, убеждаемся, что можем безопасно пересчитать итог.
     config = _checklist_for_result(base)
+    general = str(payload.get("comment") or "").strip()
+    items, seen = [], set()
+    for raw in raw_items:
+        if not isinstance(raw, dict):
+            raise HTTPException(422, "Неверный формат критерия апелляции.")
+        criterion_id = str(raw.get("criterion_id", "")).strip()
+        if criterion_id in seen:
+            raise HTTPException(422, "Один и тот же критерий указан дважды.")
+        seen.add(criterion_id)
+        row = _target_row(base, criterion_id)
+        comment = raw.get("comment") or general
+        items.append({"criterion_id": criterion_id, "criterion_name": row.get("name", criterion_id),
+                      "comment": _nonempty(comment, f"Комментарий к «{row.get('name', criterion_id)}»"),
+                      "original_value": row.get("value"), "original_evidence_index": row.get("evidence_index"),
+                      "decision": None})
+    if len(general) > 2000:
+        raise HTTPException(422, "Общий комментарий: не больше 2000 символов.")
     record = {
         "id": str(uuid.uuid4()),
         "conversation_id": conversation_id,
         "source": source,
-        "criterion_id": criterion_id,
-        "criterion_name": _target_row(base, criterion_id).get("name", criterion_id),
-        "comment": comment,
+        "items": items,
+        # Поля для совместимости со старым форматом (один критерий).
+        "criterion_id": items[0]["criterion_id"],
+        "criterion_name": ", ".join(i["criterion_name"] for i in items),
+        "comment": general or items[0]["comment"],
         "status": "pending",
         "created_at": _now(),
         "base_created_at": base.get("created_at"),
@@ -134,12 +182,14 @@ def create_appeal(payload: dict[str, Any]) -> dict[str, Any]:
     }
     with _WRITE_LOCK:
         all_appeals = _load()
-        if any(a.get("status") == "pending" and _same_base(a, record)
-               and a.get("criterion_id") == criterion_id for a in all_appeals):
-            raise HTTPException(409, "По этому критерию уже есть открытая апелляция.")
+        for other in all_appeals:
+            if other.get("status") == "pending" and _same_base(other, record):
+                busy = seen & {i.get("criterion_id") for i in appeal_items(other)}
+                if busy:
+                    raise HTTPException(409, "По этому критерию уже есть открытая апелляция.")
         all_appeals.append(record)
         save_json(APPEALS_FILE, all_appeals)
-    return record
+    return _with_items(record)
 
 
 def _recalculate(base: dict[str, Any], config: dict[str, Any], conversation: dict,
@@ -150,15 +200,16 @@ def _recalculate(base: dict[str, Any], config: dict[str, Any], conversation: dic
         for row in base["criteria"]
     }
     changes = 0
-    for item in sorted(completed, key=lambda x: x.get("decided_at") or ""):
-        decision = item.get("decision") or {}
-        if decision.get("action") == "change":
-            changes += 1
-            answers[item["criterion_id"]] = {
-                "value": decision["new_value"],
-                "reason": f"Проверяющий: {decision['reason']}",
-                "evidence_index": decision["evidence_index"],
-            }
+    for appeal in sorted(completed, key=lambda x: x.get("decided_at") or ""):
+        for item in appeal_items(appeal):
+            decision = item.get("decision") or {}
+            if decision.get("action") == "change":
+                changes += 1
+                answers[item["criterion_id"]] = {
+                    "value": decision["new_value"],
+                    "reason": f"Проверяющий: {decision['reason']}",
+                    "evidence_index": decision["evidence_index"],
+                }
     if changes == 0:
         final = copy.deepcopy(base)
     else:
@@ -170,46 +221,70 @@ def _recalculate(base: dict[str, Any], config: dict[str, Any], conversation: dic
     return final
 
 
+def _decide_item(item: dict[str, Any], raw: dict[str, Any], base: dict[str, Any], conv: dict) -> dict[str, Any]:
+    action = str(raw.get("action", "")).strip()
+    name = item.get("criterion_name") or item.get("criterion_id")
+    if action not in ("confirm", "change"):
+        raise HTTPException(422, f"«{name}»: выберите решение — подтвердить или изменить.")
+    reason = _nonempty(raw.get("reason"), f"Причина решения по «{name}»")
+    original_row = _target_row(base, item["criterion_id"])
+    new_value = original_row["value"]
+    evidence_index = original_row["evidence_index"]
+    if action == "change":
+        new_value = raw.get("new_value")
+        if new_value == original_row["value"]:
+            raise HTTPException(422, f"«{name}»: оценка не изменилась. Выберите «Подтвердить».")
+        raw_index = raw.get("evidence_index", evidence_index)
+        if type(raw_index) is not int or not 0 <= raw_index < len(conv.get("transcript", [])):
+            raise HTTPException(422, f"«{name}»: выберите существующую реплику-доказательство.")
+        evidence_index = raw_index
+    return {"action": action, "reason": reason, "old_value": original_row["value"],
+            "new_value": new_value, "evidence_index": evidence_index}
+
+
 def decide_appeal(appeal_id: str, payload: dict[str, Any],
                   conversation_finder: Callable[[str], dict[str, Any]]) -> dict[str, Any]:
-    action = str(payload.get("action", "")).strip()
-    if action not in ("confirm", "change"):
-        raise HTTPException(422, "Выберите решение: подтвердить или изменить.")
-    reason = _nonempty(payload.get("reason"), "Причина решения")
+    """Решение проверяющего по ВСЕМ критериям апелляции сразу.
+
+    Новый формат: {"decisions": [{"criterion_id", "action", "reason", "new_value", "evidence_index"}]}.
+    Для апелляции с одним критерием подходит и старый формат {"action", "reason", ...}.
+    """
     with _WRITE_LOCK:
         all_appeals = _load()
-        item = next((a for a in all_appeals if a.get("id") == appeal_id), None)
-        if item is None:
+        stored = next((a for a in all_appeals if a.get("id") == appeal_id), None)
+        if stored is None:
             raise HTTPException(404, "Апелляция не найдена.")
-        if item["status"] != "pending":
+        if stored["status"] != "pending":
             raise HTTPException(409, "По этой апелляции уже принято решение.")
-        conv = conversation_finder(item["conversation_id"])
-        base = _get_base(item)
-        original_row = _target_row(base, item["criterion_id"])
-        new_value = original_row["value"]
-        evidence_index = original_row["evidence_index"]
-        if action == "change":
-            new_value = payload.get("new_value")
-            if new_value == original_row["value"] or (type(new_value) is int and type(original_row["value"]) is int and new_value == original_row["value"]):
-                raise HTTPException(422, "Оценка не изменилась. Выберите «Подтвердить».")
-            raw_index = payload.get("evidence_index", evidence_index)
-            if type(raw_index) is not int or not 0 <= raw_index < len(conv.get("transcript", [])):
-                raise HTTPException(422, "Выберите существующую реплику-доказательство.")
-            evidence_index = raw_index
+        conv = conversation_finder(stored["conversation_id"])
+        base = _get_base(stored)
+        items = copy.deepcopy(appeal_items(stored))
+        decisions = payload.get("decisions")
+        if decisions is None:
+            if len(items) != 1:
+                raise HTTPException(422, "Укажите решение по каждому критерию апелляции.")
+            decisions = [{**payload, "criterion_id": items[0]["criterion_id"]}]
+        if not isinstance(decisions, list):
+            raise HTTPException(422, "decisions должен быть списком.")
+        by_id = {str(d.get("criterion_id")): d for d in decisions if isinstance(d, dict)}
+        for item in items:
+            raw = by_id.get(item["criterion_id"])
+            if raw is None:
+                raise HTTPException(422, f"Нет решения по критерию «{item.get('criterion_name')}».")
+            item["decision"] = _decide_item(item, raw, base, conv)
 
-        proposal = copy.deepcopy(item)
-        proposal["decision"] = {"action": action, "reason": reason,
-                                "old_value": original_row["value"], "new_value": new_value,
-                                "evidence_index": evidence_index}
+        proposal = copy.deepcopy(stored)
+        proposal["items"] = items
+        proposal["decision"] = items[0]["decision"]
         proposal["decided_at"] = _now()
         proposal["status"] = "resolved"
 
         # Все решения для той же ИСХОДНОЙ оценки учитываются совместно.
-        previous_resolved = [a for a in all_appeals if a.get("status") == "resolved" and _same_base(a, item)]
+        previous_resolved = [a for a in all_appeals if a.get("status") == "resolved" and _same_base(a, stored)]
         completed = previous_resolved + [proposal]
-        final = _recalculate(base, item["checklist_snapshot"], conv, completed)
+        final = _recalculate(base, stored["checklist_snapshot"], conv, completed)
         proposal["final_result"] = final
         proposal["final_score"] = final.get("score")
-        all_appeals[all_appeals.index(item)] = proposal
+        all_appeals[all_appeals.index(stored)] = proposal
         save_json(APPEALS_FILE, all_appeals)
-    return proposal
+    return _with_items(proposal)

@@ -1,6 +1,8 @@
 "use strict";
 
-// Этап 5. Апелляции и пересмотр. Отдельный файл, не вмешивается в AI-логику.
+// Апелляции в карточке диалога: подача обращения по ОДНОМУ ИЛИ НЕСКОЛЬКИМ критериям
+// и история обращений. Решение проверяющего принимается на отдельной странице
+// «Карточка апелляции» (см. app.js → openCase).
 (() => {
   const panel = document.getElementById("appeals-panel");
   if (!panel) return;
@@ -25,235 +27,144 @@
   function jumpTo(index) {
     const item = document.getElementById(`msg-${index}`);
     if (!item) return;
-    item.scrollIntoView({behavior:"smooth",block:"center"});
+    item.scrollIntoView({behavior: "smooth", block: "center"});
     item.classList.add("flash");
     setTimeout(() => item.classList.remove("flash"), 1500);
   }
 
-  function proofButton(index, label) {
-    const btn = el("button", label || `Показать реплику #${index + 1}`, "appeal-link");
-    btn.type = "button";
-    btn.addEventListener("click", () => jumpTo(index));
-    return btn;
-  }
-
-  function valueLabel(value) {
-    if (value === "yes") return "Да";
-    if (value === "no") return "Нет";
-    if (value === "na") return "N/A";
-    return String(value);
-  }
-
-  function selectControl(options) {
-    const select = el("select");
-    for (const [value, label] of options) {
-      const option = el("option", label);
-      option.value = value;
-      select.append(option);
-    }
-    return select;
-  }
-
-  function sourceLabel(s) {
-    return ({manual:"Ручная", groq:"GroqCloud", gemini:"Google Gemini"})[s] || s;
-  }
-
-  function scoreLabel(score) {
-    return score == null ? "не рассчитывается" : `${Number(score).toFixed(2)} / 100`;
-  }
-
-  function formatDate(iso) {
-    const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? "" : d.toLocaleString("ru-RU");
-  }
-
-  function sourceResults(all) {
-    const out = {};
-    if (all.manual) out.manual = all.manual;
-    if (all.groq) out.groq = all.groq;
-    if (all.gemini) out.gemini = all.gemini;
-    return out;
-  }
+  const valueLabel = (v) => v === "yes" ? "Да" : v === "no" ? "Нет" : v === "na" ? "N/A" : v == null ? "—" : String(v);
+  const sourceLabel = (s) => ({manual: "Ручная", groq: "GroqCloud", gemini: "Google Gemini"})[s] || s;
+  const scoreLabel = (s) => s == null ? "—" : `${Number(s).toFixed(2)} / 100`;
+  const formatDate = (iso) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? "" : d.toLocaleString("ru-RU"); };
 
   async function getAvailableResults(conversationId) {
-    const urls = [
+    const out = {};
+    const [manual, ai] = await Promise.all([
       `/api/evaluations/${encodeURIComponent(conversationId)}`,
-      `/api/ai/evaluations/${encodeURIComponent(conversationId)}`
-    ];
-    const result = {};
-    const responses = await Promise.all(urls.map(async url => {
+      `/api/ai/evaluations/${encodeURIComponent(conversationId)}`,
+    ].map(async url => {
       try { return await api(url); }
       catch (err) { if (err.message.includes("ещё не оценён")) return null; throw err; }
     }));
-    if (responses[0]) result.manual = responses[0];
-    if (responses[1]) {
-      if (responses[1].groq) result.groq = responses[1].groq;
-      if (responses[1].gemini) result.gemini = responses[1].gemini;
-    }
-    return sourceResults(result);
+    if (manual) out.manual = manual;
+    if (ai?.groq) out.groq = ai.groq;
+    if (ai?.gemini) out.gemini = ai.gemini;
+    return out;
   }
 
-  function buildNewAppealForm(results, conversationId) {
+  function buildForm(results, conversationId, openCriteria) {
     const card = el("div", "", "appeals-box");
-    card.append(el("h3", "1. Подать апелляцию (пользователь)"));
-    const available = Object.keys(results);
-    if (!available.length) {
-      card.append(el("p", "Сначала оцените этот диалог вручную или с AI. Затем здесь можно оспорить критерий.", "muted"));
+    card.append(el("h3", "Подать апелляцию"));
+    const sources = Object.keys(results);
+    if (!sources.length) {
+      card.append(el("p", "Сначала оцените этот диалог вручную или с AI — затем здесь можно оспорить один или несколько критериев.", "muted small"));
       return card;
     }
     const form = el("form", "", "appeals-form");
-    const sourceLabelEl = el("label", "Источник оценки:", "appeal-field");
-    const source = selectControl(available.map(key => [key, sourceLabel(key)]));
-    sourceLabelEl.append(source);
-    const criterionLabel = el("label", "Какой критерий оспариваем:", "appeal-field");
-    const criterionSelect = selectControl([]);
-    criterionLabel.append(criterionSelect);
-    const details = el("p", "", "appeals-hint");
-    const proof = el("div");
-    const commentLabel = el("label", "Почему вы не согласны с оценкой?", "appeal-field");
-    const comment = el("textarea");
-    comment.rows = 3;
-    comment.placeholder = "Например: оператор назвал следующий шаг в сообщении №5, а AI этого не заметил";
-    comment.required = true;
-    comment.maxLength = 2000;
-    commentLabel.append(comment);
+    const sourceField = el("label", "", "appeal-field");
+    sourceField.append(el("span", "Какую оценку оспариваем"));
+    const source = el("select");
+    for (const key of sources) source.append(new Option(`${sourceLabel(key)} · ${scoreLabel(results[key].score)}`, key));
+    sourceField.append(source);
+
+    const pick = el("fieldset", "", "appeal-pick");
+    pick.append(el("legend", "Критерии (можно выбрать несколько)"));
+    const rows = el("div", "", "appeal-rows");
+    pick.append(rows);
+
+    const generalField = el("label", "", "appeal-field");
+    generalField.append(el("span", "Общий комментарий (используется для критериев без своего комментария)"));
+    const general = el("textarea");
+    general.rows = 2; general.maxLength = 2000;
+    general.placeholder = "Например: оператор поздоровался и попрощался, AI этого не учёл";
+    generalField.append(general);
+
+    const message = el("p", "", "appeal-inline-msg");
     const send = el("button", "Подать апелляцию", "primary");
     send.type = "submit";
-    const message = el("p", "", "appeal-inline-msg");
+    form.append(sourceField, pick, generalField, message, send);
+    card.append(form);
 
-    function updateProof() {
-      const current = results[source.value];
-      const row = current?.criteria?.find(r => r.id === criterionSelect.value);
-      proof.replaceChildren();
-      if (!row) return;
-      details.textContent = `Оценка: ${valueLabel(row.value)} · исходный итог: ${scoreLabel(current.score)}. ${row.reason}`;
-      if (Number.isInteger(row.evidence_index)) proof.append(proofButton(row.evidence_index, `Исходное доказательство — реплика #${row.evidence_index + 1}`));
-    }
-    function updateCriteria() {
-      criterionSelect.replaceChildren();
-      const rows = results[source.value]?.criteria || [];
-      for (const row of rows) {
-        const opt = el("option", row.name);
-        opt.value = row.id;
-        criterionSelect.append(opt);
+    let controls = [];
+    function renderRows() {
+      rows.replaceChildren();
+      controls = [];
+      const result = results[source.value];
+      const busy = openCriteria[source.value] || new Set();
+      for (const row of result.criteria || []) {
+        const line = el("div", "", "appeal-row");
+        const label = el("label", "", "appeal-check");
+        const box = el("input"); box.type = "checkbox";
+        const name = el("span", row.name, "appeal-crit");
+        const value = el("span", valueLabel(row.value), "appeal-val");
+        label.append(box, name, value);
+        line.append(label);
+        if (busy.has(row.id)) {
+          box.disabled = true;
+          line.append(el("span", "уже на рассмотрении", "appeal-busy"));
+        }
+        if (Number.isInteger(row.evidence_index)) {
+          const proof = el("button", `#${row.evidence_index + 1}`, "appeal-link");
+          proof.type = "button"; proof.title = "Показать реплику-доказательство";
+          proof.addEventListener("click", () => jumpTo(row.evidence_index));
+          line.append(proof);
+        }
+        const comment = el("textarea", "", "appeal-comment");
+        comment.rows = 2; comment.maxLength = 2000; comment.hidden = true;
+        comment.placeholder = `Почему вы не согласны с оценкой «${row.name}»?`;
+        box.addEventListener("change", () => { comment.hidden = !box.checked; line.classList.toggle("on", box.checked); if (box.checked) comment.focus(); });
+        line.append(comment);
+        rows.append(line);
+        controls.push({row, box, comment});
       }
-      updateProof();
     }
-    source.addEventListener("change", updateCriteria);
-    criterionSelect.addEventListener("change", updateProof);
-    updateCriteria();
+    source.addEventListener("change", renderRows);
+    renderRows();
 
-    form.append(sourceLabelEl, criterionLabel, details, proof, commentLabel, send, message);
     form.addEventListener("submit", async event => {
       event.preventDefault();
-      if (selectedId !== conversationId) return;
+      message.textContent = "";
+      const picked = controls.filter(c => c.box.checked);
+      if (!picked.length) { message.textContent = "Отметьте хотя бы один критерий."; return; }
+      const missing = picked.find(c => c.comment.value.trim().length < 3 && general.value.trim().length < 3);
+      if (missing) { message.textContent = `Добавьте комментарий к «${missing.row.name}» или общий комментарий.`; missing.comment.focus(); return; }
       send.disabled = true;
-      message.textContent = "Сохраняем обращение...";
+      send.textContent = "Сохраняем...";
       try {
-        await api("/api/appeals", {method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({conversation_id: conversationId, source: source.value,
-            criterion_id: criterionSelect.value, comment: comment.value.trim()})});
+        await api("/api/appeals", {method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({conversation_id: conversationId, source: source.value, comment: general.value.trim(),
+            items: picked.map(c => ({criterion_id: c.row.id, comment: c.comment.value.trim()}))})});
         await refresh(conversationId);
         document.dispatchEvent(new CustomEvent("cqa:appeals-changed", {detail: {conversationId}}));
-      } catch (err) {message.textContent = `Ошибка: ${err.message}`;}
-      finally {send.disabled = false;}
+      } catch (err) { message.textContent = `Ошибка: ${err.message}`; }
+      finally { send.disabled = false; send.textContent = "Подать апелляцию"; }
     });
-    card.append(form);
     return card;
   }
 
-  function getCriterionConfig(appeal) {
-    return (appeal.checklist_snapshot?.criteria || []).find(c => c.id === appeal.criterion_id);
-  }
-
-  function buildDecisionForm(appeal, conversationId) {
-    const form = el("form", "", "appeals-form reviewer-form");
-    const decisionLabel = el("label", "Решение проверяющего:", "appeal-field");
-    const action = selectControl([["confirm", "Подтвердить исходную оценку"], ["change", "Изменить оценку"]]);
-    decisionLabel.append(action);
-    form.append(decisionLabel);
-
-    const criterion = getCriterionConfig(appeal);
-    const gradeLabel = el("label", "Новая оценка:", "appeal-field");
-    const options = [];
-    if (criterion?.type === "scale") {
-      for (const v of criterion.scale) options.push([String(v), String(v)]);
-    } else {
-      options.push(["yes", "Да"], ["no", "Нет"]);
-    }
-    if (criterion?.allow_na) options.push(["na", "N/A"]);
-    const grade = selectControl(options);
-    const originalValue = appeal.original_result.criteria.find(c => c.id === appeal.criterion_id)?.value;
-    grade.value = String(originalValue);
-    gradeLabel.append(grade);
-
-    const evidenceLabel = el("label", "Реплика для новой оценки (номер с нуля):", "appeal-field");
-    const evidence = el("input");
-    evidence.type = "number";
-    evidence.min = "0";
-    evidence.step = "1";
-    const oldIndex = appeal.original_result.criteria.find(c => c.id === appeal.criterion_id)?.evidence_index;
-    evidence.value = String(oldIndex ?? 0);
-    evidenceLabel.append(evidence);
-
-    const reasonLabel = el("label", "Причина решения (обязательно):", "appeal-field");
-    const reason = el("textarea");
-    reason.required = true;
-    reason.maxLength = 2000;
-    reason.placeholder = "Например: просмотрел реплику №4, AI не учёл уточнение оператора";
-    reasonLabel.append(reason);
-    const submit = el("button", "Сохранить решение проверяющего", "primary");
-    submit.type = "submit";
-    const message = el("p", "", "appeal-inline-msg");
-    const showChange = () => {gradeLabel.hidden = action.value !== "change"; evidenceLabel.hidden = action.value !== "change";};
-    action.addEventListener("change", showChange);
-    showChange();
-    form.append(gradeLabel, evidenceLabel, reasonLabel, submit, message);
-
-    form.addEventListener("submit", async event => {
-      event.preventDefault();
-      if (selectedId !== conversationId) return;
-      const changed = action.value === "change";
-      const rawValue = grade.value;
-      const newValue = criterion?.type === "scale" && rawValue !== "na" ? Number(rawValue) : rawValue;
-      const answer = {action:action.value, reason:reason.value.trim()};
-      if (changed) {answer.new_value=newValue; answer.evidence_index=Number(evidence.value);}
-      submit.disabled = true;
-      message.textContent = "Сохраняем итог...";
-      try {
-        await api(`/api/appeals/${encodeURIComponent(appeal.id)}/decision`, {
-          method:"POST",headers:{"Content-Type":"application/json"}, body:JSON.stringify(answer)});
-        await refresh(conversationId);
-        document.dispatchEvent(new CustomEvent("cqa:appeals-changed", {detail: {conversationId}}));
-      } catch(err) {message.textContent=`Ошибка: ${err.message}`;}
-      finally {submit.disabled = false;}
-    });
-    return form;
-  }
-
-  function buildAppealCard(appeal, conversationId) {
-    const card = el("div", "", "appeal-entry");
+  function historyCard(appeal) {
     const resolved = appeal.status === "resolved";
-    const header = el("div", "", "appeal-entry-head");
-    header.append(el("strong", `${sourceLabel(appeal.source)} · ${appeal.criterion_name}`));
-    header.append(el("span", resolved ? "Решено" : "Ожидает решения", resolved ? "appeal-state resolved" : "appeal-state pending"));
-    card.append(header);
+    const card = el("article", "", "appeal-entry");
+    const head = el("div", "", "appeal-entry-head");
+    head.append(el("strong", `${sourceLabel(appeal.source)} · ${appeal.items.length} ${appeal.items.length === 1 ? "критерий" : appeal.items.length < 5 ? "критерия" : "критериев"}`),
+      el("span", resolved ? "Решена" : "Ожидает решения", `appeal-state ${resolved ? "resolved" : "pending"}`));
+    card.append(head);
     card.append(el("p", `Создано: ${formatDate(appeal.created_at)}`, "muted small"));
-    card.append(el("p", `Комментарий пользователя: ${appeal.comment}`));
-    const old = appeal.original_result.criteria.find(c => c.id === appeal.criterion_id);
-    if (old) {
-      card.append(el("p", `Первоначальная оценка: ${valueLabel(old.value)} · итог ${scoreLabel(appeal.original_score)}`, "small"));
-      if (Number.isInteger(old.evidence_index)) card.append(proofButton(old.evidence_index, `Показать доказательство (#${old.evidence_index + 1})`));
+    const list = el("ul", "", "appeal-items");
+    for (const item of appeal.items) {
+      const li = el("li");
+      const d = item.decision;
+      const after = d ? (d.action === "change" ? ` → ${valueLabel(d.new_value)}` : " · подтверждено") : "";
+      li.append(el("strong", item.criterion_name || item.criterion_id), el("span", ` ${valueLabel(item.original_value ?? d?.old_value)}${after}`, "muted"));
+      if (item.comment) li.append(el("p", `«${item.comment}»`, "small"));
+      list.append(li);
     }
-    if (resolved) {
-      const d = appeal.decision;
-      card.append(el("p", `Решение проверяющего: ${d.action === "confirm" ? "Подтвердить" : "Изменить на " + valueLabel(d.new_value)}. Причина: ${d.reason}`));
-      card.append(el("strong", `Итог после пересмотра: ${scoreLabel(appeal.final_score)}`, "appeal-final"));
-      if (d.action === "change" && Number.isInteger(d.evidence_index)) card.append(proofButton(d.evidence_index, `Доказательство проверяющего (#${d.evidence_index + 1})`));
-    } else {
-      card.append(el("h4", "2. Решение проверяющего"));
-      card.append(buildDecisionForm(appeal, conversationId));
-    }
+    card.append(list);
+    card.append(el("p", resolved ? `Итог: ${scoreLabel(appeal.original_score)} → ${scoreLabel(appeal.final_score)}` : `Исходный итог: ${scoreLabel(appeal.original_score)}`, resolved ? "appeal-final" : "small"));
+    const open = el("button", resolved ? "Открыть карточку" : "Рассмотреть (проверяющий)", resolved ? "secondary" : "primary");
+    open.type = "button";
+    open.addEventListener("click", () => document.dispatchEvent(new CustomEvent("cqa:open-case", {detail: {id: appeal.id}})));
+    card.append(open);
     return card;
   }
 
@@ -261,9 +172,9 @@
     if (!conversationId) return;
     selectedId = conversationId;
     panel.replaceChildren();
-    panel.append(el("h2", "Апелляции и пересмотр"));
-    panel.append(el("p", "Здесь можно оспорить конкретный критерий. Проверяющий подтверждает или меняет оценку и указывает причину. Вход не нужен — это демо хакатона.", "muted small"));
-    const loading = el("p", "Загружаем оценки и обращения...", "muted");
+    panel.append(el("h2", "Апелляции"));
+    panel.append(el("p", "Оспорьте один или несколько критериев одним обращением. Проверяющий рассматривает его на отдельной странице.", "muted small"));
+    const loading = el("p", "Загружаем оценки и обращения...", "muted small");
     panel.append(loading);
     try {
       const [results, appeals] = await Promise.all([
@@ -272,13 +183,22 @@
       ]);
       if (selectedId !== conversationId) return;
       loading.remove();
-      panel.append(buildNewAppealForm(results, conversationId));
+      // Критерии, по которым уже есть открытая апелляция к той же оценке.
+      const openCriteria = {};
+      for (const a of appeals) {
+        if (a.status !== "pending") continue;
+        const base = results[a.source];
+        if (!base || base.created_at !== a.base_created_at) continue;
+        openCriteria[a.source] ??= new Set();
+        a.items.forEach(i => openCriteria[a.source].add(i.criterion_id));
+      }
+      panel.append(buildForm(results, conversationId, openCriteria));
       const history = el("div", "", "appeal-history");
       history.append(el("h3", `История обращений (${appeals.length})`));
-      if (!appeals.length) history.append(el("p", "Пока нет апелляций для этого диалога.", "muted"));
-      for (const appeal of appeals) history.append(buildAppealCard(appeal, conversationId));
+      if (!appeals.length) history.append(el("p", "Пока нет апелляций для этого диалога.", "muted small"));
+      for (const appeal of appeals) history.append(historyCard(appeal));
       panel.append(history);
-    } catch(err) {
+    } catch (err) {
       if (selectedId === conversationId) loading.textContent = `Не удалось загрузить апелляции: ${err.message}`;
     }
   }
@@ -286,5 +206,8 @@
   document.addEventListener("cqa:conversation-opened", event => refresh(event.detail.conversationId));
   document.addEventListener("cqa:assessment-changed", event => {
     if (event.detail.conversationId === selectedId) refresh(selectedId);
+  });
+  document.addEventListener("cqa:appeals-changed", event => {
+    if (event.detail?.conversationId === selectedId && event.detail?.fromCase) refresh(selectedId);
   });
 })();

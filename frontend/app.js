@@ -103,7 +103,6 @@ function jumpToMessage(index) {
 // ---------- Данные ----------
 async function refresh() {
   const status = await requestJson("/api/status");
-  $("api-status").textContent = status.api_configured ? "настроен" : "нет ссылки";
   allConversations = await requestJson("/api/conversations");
   updateCounts();
   await loadScores();
@@ -140,14 +139,24 @@ function updateCounts() {
   const current = select.value;
   select.replaceChildren(new Option("Все", ""), ...languages.map(l => new Option(l, l)));
   select.value = languages.includes(current) ? current : "";
+  const origins = [...new Set(allConversations.map(c => c.origin || "DEV"))].sort((a, b) => a === "DEV" ? -1 : b === "DEV" ? 1 : a.localeCompare(b));
+  const originSelect = $("origin-filter");
+  const currentOrigin = originSelect.value;
+  originSelect.replaceChildren(new Option("Все", ""), ...origins.map(o => new Option(originLabel(o), o)));
+  originSelect.value = origins.includes(currentOrigin) ? currentOrigin : "";
+  $("origin-filter").closest("label").hidden = origins.length < 2;
 }
+
+const originLabel = (o) => o === "DEV" ? "DEV (65)" : o === "custom" ? "Мои диалоги" : o;
 
 // ---------- Список диалогов ----------
 function filteredConversations() {
   const search = $("search").value.trim().toLowerCase();
   const channel = $("channel-filter").value;
   const language = $("language-filter").value;
+  const origin = $("origin-filter").value;
   const list = allConversations.filter(c =>
+    (!origin || (c.origin || "DEV") === origin) &&
     (!search || (c.conversation_id || "").toLowerCase().includes(search) || (c.search_text || "").includes(search)) &&
     (channel === "all" || kindOf(c) === channel) &&
     (!language || c.language === language));
@@ -177,7 +186,9 @@ function renderList() {
     const icon = svg(ICONS[kind]);
     icon.classList.add("kind-icon", kind);
     const text = node("span", "", "list-text");
-    text.append(node("strong", id || "Без ID"), node("span", `${KIND_LABEL[kind]} · ${conversation.language || "?"} · ${conversation.message_count} реплик`));
+    const title = node("strong", id || "Без ID");
+    if (conversation.origin && conversation.origin !== "DEV") title.append(node("em", conversation.origin === "custom" ? "свой" : conversation.origin, "origin-tag"));
+    text.append(title, node("span", `${KIND_LABEL[kind]} · ${conversation.language || "?"} · ${conversation.message_count} реплик`));
     const score = scores[id]?.score;
     const badge = node("span", fmtScore(score), `score-badge ${scoreTone(score)}`);
     if (score != null) badge.title = `Источник: ${SOURCE_LABEL[scores[id].primary] || ""}`;
@@ -534,14 +545,18 @@ function renderResult(parent, result) {
 
 // ---------- Разделы (вид) ----------
 const VIEW_TITLES = {
-  evaluate: "Оценка диалогов", appeals: "Апелляции", review: "Ревью", analytics: "Аналитика", checklist: "Чек-лист",
+  evaluate: "Оценка диалогов", add: "Добавить свои диалоги", appeals: "Апелляции", review: "Ревью",
+  analytics: "Аналитика", checklist: "Чек-лист", case: "Карточка апелляции",
 };
+let previousView = "review";
 
 function showView(view) {
   if (!VIEW_TITLES[view]) view = "evaluate";
+  if (view === "case" && activeView !== "case") previousView = activeView;
   activeView = view;
+  const navView = view === "case" ? previousView : view;
   document.querySelectorAll(".side-nav [data-view]").forEach(b => {
-    if (b.dataset.view === view) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+    if (b.dataset.view === navView) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
   });
   document.querySelectorAll("[data-view-panel]").forEach(p => p.hidden = p.dataset.viewPanel !== view);
   $("view-title").textContent = VIEW_TITLES[view];
@@ -550,12 +565,13 @@ function showView(view) {
   if (view === "appeals") { renderAppealsTable(); loadAppeals(); }
   if (view === "review") { renderReview(); loadAppeals(); }
   if (view === "analytics") renderAnalytics();
+  if (view === "add") renderCustomList();
 }
 
-async function openFromAppeal(conversationId) {
-  showView("evaluate");
-  await openConversation(conversationId);
-  setTimeout(() => $("appeals-panel").scrollIntoView({behavior: "smooth", block: "start"}), 400);
+// Показать верх окна приложения, не прокручивая страницу вниз.
+function keepWindowInView() {
+  const top = document.querySelector(".app-window").getBoundingClientRect().top;
+  if (top < 0) window.scrollTo({top: window.scrollY + top - 12, behavior: "auto"});
 }
 
 function formatDate(iso) {
@@ -584,11 +600,12 @@ function renderAppealsTable() {
     const tr = node("tr");
     tr.tabIndex = 0;
     const scoreText = a.final_score != null ? `${fmtScore(a.original_score)} → ${fmtScore(a.final_score)}` : fmtScore(a.original_score);
-    const cells = [formatDate(a.created_at), a.conversation_id, SOURCE_LABEL[a.source] || a.source, a.criterion_name, a.comment];
+    const names = (a.items || []).map(i => i.criterion_name).filter(Boolean).join(", ") || a.criterion_name;
+    const cells = [formatDate(a.created_at), a.conversation_id, SOURCE_LABEL[a.source] || a.source, names, a.comment];
     cells.forEach((v, i) => { const td = node("td", v || "—"); if (i === 4) td.className = "clip"; if (i === 1) td.className = "mono"; tr.append(td); });
     const st = node("td"); st.append(statePill(a.status)); tr.append(st);
     tr.append(node("td", scoreText, "mono"));
-    const open = () => openFromAppeal(a.conversation_id);
+    const open = () => openCase(a.id);
     tr.addEventListener("click", open);
     tr.addEventListener("keydown", e => { if (e.key === "Enter") open(); });
     table.append(tr);
@@ -606,12 +623,15 @@ function renderReview() {
     const head = node("div", "", "review-head");
     head.append(node("strong", a.conversation_id, "mono"), statePill(a.status));
     card.append(head);
-    card.append(node("p", `${a.criterion_name} · ${SOURCE_LABEL[a.source] || a.source} · балл ${fmtScore(a.original_score)}`, "muted small"));
+    card.append(node("p", `${SOURCE_LABEL[a.source] || a.source} · исходный балл ${fmtScore(a.original_score)}`, "muted small"));
+    const chips = node("div", "", "crit-chips");
+    for (const item of a.items || []) chips.append(node("span", item.criterion_name, "crit-chip"));
+    card.append(chips);
     card.append(node("p", `«${a.comment}»`, "review-comment"));
     const foot = node("div", "", "review-foot");
     foot.append(node("span", formatDate(a.created_at), "muted small"));
     const go = node("button", "Рассмотреть", "primary"); go.type = "button";
-    go.addEventListener("click", () => openFromAppeal(a.conversation_id));
+    go.addEventListener("click", () => openCase(a.id));
     foot.append(go);
     card.append(foot);
     grid.append(card);
@@ -622,6 +642,331 @@ function emptyBlock(text) {
   const box = node("div", "", "empty-state");
   box.append(node("p", text));
   return box;
+}
+
+// ---------- Карточка апелляции (страница проверяющего) ----------
+const valueText = (v) => v === "yes" ? "Да" : v === "no" ? "Нет" : v === "na" ? "N/A" : v == null ? "—" : String(v);
+
+async function openCase(appealId) {
+  showView("case");
+  keepWindowInView();
+  const page = $("case-page");
+  page.replaceChildren(node("p", "Загружаем апелляцию...", "muted"));
+  try {
+    const appeal = await requestJson(`/api/appeals/${encodeURIComponent(appealId)}`);
+    const conversation = await requestJson(`/api/conversations/${encodeURIComponent(appeal.conversation_id)}`);
+    if (activeView !== "case") return;
+    renderCase(appeal, conversation);
+  } catch (error) {
+    page.replaceChildren(node("p", `Не удалось открыть апелляцию: ${error.message}`, "muted"));
+  }
+}
+
+function renderCase(appeal, conversation) {
+  const page = $("case-page");
+  page.replaceChildren();
+  const resolved = appeal.status === "resolved";
+  const base = appeal.original_result || {};
+  const snapshot = appeal.checklist_snapshot || currentChecklist || {criteria: []};
+
+  // Верхняя панель
+  const top = node("div", "", "case-top");
+  const back = node("button", `← ${VIEW_TITLES[previousView] || "Назад"}`, "btn btn-ghost btn-sm");
+  back.type = "button";
+  back.addEventListener("click", () => showView(previousView || "review"));
+  const titleBox = node("div", "", "case-title");
+  const h = node("h3", `Апелляция · ${appeal.conversation_id}`);
+  h.append(statePill(appeal.status));
+  titleBox.append(h, node("p", `${SOURCE_LABEL[appeal.source] || appeal.source} · создана ${formatDate(appeal.created_at)}${resolved ? " · решена " + formatDate(appeal.decided_at) : ""}`, "muted small"));
+  const scoreBox = node("div", "", "case-score");
+  scoreBox.append(node("span", "Исходный итог", "muted small"), node("strong", fmtScore(appeal.original_score), `tone-${scoreTone(appeal.original_score)}`));
+  if (resolved) {
+    scoreBox.append(node("span", "→", "case-arrow"));
+    const fin = node("div");
+    fin.append(node("span", "Финальный итог", "muted small"), node("strong", fmtScore(appeal.final_score), `tone-${scoreTone(appeal.final_score)}`));
+    scoreBox.append(fin);
+  }
+  const openDialog = node("button", "Открыть диалог", "btn btn-ghost btn-sm");
+  openDialog.type = "button";
+  openDialog.addEventListener("click", async () => { showView("evaluate"); await openConversation(appeal.conversation_id); keepWindowInView(); });
+  top.append(back, titleBox, scoreBox, openDialog);
+  page.append(top);
+  if (appeal.comment) page.append(node("p", `Комментарий пользователя: «${appeal.comment}»`, "case-comment"));
+
+  const grid = node("div", "", "case-grid");
+  // Транскрипт (прокручивается внутри, страница не двигается)
+  const tCol = node("section", "", "col case-transcript");
+  tCol.append(node("h4", `Транскрипт · ${conversation.transcript.length} реплик`));
+  const box = node("div", "", "messages case-messages");
+  conversation.transcript.forEach((message, index) => {
+    const speaker = String(message.speaker || "").toLowerCase();
+    const role = ["operator", "bot", "system"].includes(speaker) ? speaker : "client";
+    const block = node("article", "", `message ${role}`);
+    block.id = `case-msg-${index}`;
+    const avatar = svg(ICONS[role]); avatar.classList.add("msg-avatar");
+    const body = node("div", "", "msg-body");
+    const time = formatStamp(message.timestamp);
+    body.append(node("div", `${{operator: "Оператор", bot: "Бот", client: "Клиент", system: "Система"}[role]}${time ? " · " + time : ""} · #${index + 1}`, "info"), node("p", message.text || ""));
+    block.append(avatar, body);
+    box.append(block);
+  });
+  tCol.append(box);
+  const jump = (index) => {
+    const target = document.getElementById(`case-msg-${index}`);
+    if (!target) return;
+    box.scrollTo({top: target.offsetTop - box.offsetTop - 60, behavior: "smooth"});
+    target.classList.add("flash");
+    setTimeout(() => target.classList.remove("flash"), 1600);
+  };
+  if (conversation.audio_url) {
+    const player = node("div", "", "audio-player");
+    const audio = document.createElement("audio");
+    audio.controls = true; audio.preload = "none"; audio.src = conversation.audio_url;
+    player.append(audio);
+    tCol.insertBefore(player, box);
+  }
+
+  // Критерии апелляции
+  const iCol = node("section", "", "case-items");
+  iCol.append(node("h4", `Оспоренные критерии (${appeal.items.length})`));
+  const controls = [];
+  for (const item of appeal.items) {
+    const row = (base.criteria || []).find(c => c.id === item.criterion_id) || {};
+    const criterion = (snapshot.criteria || []).find(c => c.id === item.criterion_id);
+    const card = node("article", "", "case-item");
+    const head = node("div", "", "case-item-head");
+    head.append(node("strong", item.criterion_name || item.criterion_id), node("span", `вес ${row.weight ?? criterion?.weight ?? "—"}`, "muted small"));
+    card.append(head);
+    const orig = node("p", "", "small");
+    orig.append(node("span", "Исходная оценка: ", "muted"), node("strong", valueText(row.value)));
+    if (Number.isInteger(row.evidence_index)) {
+      const proof = node("button", `реплика #${row.evidence_index + 1}`, "link-button");
+      proof.type = "button"; proof.addEventListener("click", () => jump(row.evidence_index));
+      orig.append(document.createTextNode(" · "), proof);
+    }
+    card.append(orig);
+    if (row.reason) card.append(node("p", `Обоснование оценки: ${row.reason}`, "muted small"));
+    if (item.comment) card.append(node("p", `«${item.comment}»`, "case-user-comment"));
+
+    if (resolved || item.decision) {
+      const d = item.decision || {};
+      const res = node("div");
+      res.className = `case-decision ${d.action === "change" ? "changed" : "confirmed"}`;
+      res.append(node("strong", d.action === "change" ? `Изменено: ${valueText(d.old_value)} → ${valueText(d.new_value)}` : "Оценка подтверждена"));
+      if (d.reason) res.append(node("p", `Причина: ${d.reason}`, "small"));
+      if (d.action === "change" && Number.isInteger(d.evidence_index)) {
+        const proof = node("button", `Доказательство проверяющего · #${d.evidence_index + 1}`, "link-button");
+        proof.type = "button"; proof.addEventListener("click", () => jump(d.evidence_index));
+        res.append(proof);
+      }
+      card.append(res);
+    } else {
+      const form = node("div", "", "case-form");
+      const actions = node("div", "", "seg-tabs small-tabs");
+      const confirmBtn = node("button", "Подтвердить", ""); confirmBtn.type = "button";
+      const changeBtn = node("button", "Изменить", ""); changeBtn.type = "button";
+      actions.append(confirmBtn, changeBtn);
+      const changeBox = node("div", "", "form-row two");
+      changeBox.hidden = true;
+      const valueField = node("label", "", "edit-field"); valueField.append(node("span", "Новая оценка"));
+      const valueSelect = document.createElement("select");
+      for (const [v, label] of (criterion ? answerOptions(criterion) : [["yes", "Да"], ["no", "Нет"]])) {
+        if (String(v) !== String(row.value)) valueSelect.append(new Option(label, v));
+      }
+      valueField.append(valueSelect);
+      const evField = node("label", "", "edit-field"); evField.append(node("span", "Реплика-доказательство"));
+      const evSelect = document.createElement("select");
+      conversation.transcript.forEach((m, idx) => evSelect.append(new Option(`#${idx + 1} · ${m.speaker} · ${String(m.text || "").slice(0, 70)}`, String(idx))));
+      if (Number.isInteger(row.evidence_index)) evSelect.value = String(row.evidence_index);
+      evSelect.addEventListener("change", () => jump(Number(evSelect.value)));
+      evField.append(evSelect);
+      changeBox.append(valueField, evField);
+      const reason = document.createElement("textarea");
+      reason.rows = 2; reason.maxLength = 2000; reason.placeholder = "Причина решения (обязательно)";
+      const state = {action: null};
+      const setAction = (a) => {
+        state.action = a;
+        confirmBtn.setAttribute("aria-selected", String(a === "confirm"));
+        changeBtn.setAttribute("aria-selected", String(a === "change"));
+        changeBox.hidden = a !== "change";
+      };
+      confirmBtn.addEventListener("click", () => setAction("confirm"));
+      changeBtn.addEventListener("click", () => setAction("change"));
+      form.append(actions, changeBox, reason);
+      card.append(form);
+      controls.push({item, criterion, state, valueSelect, evSelect, reason});
+    }
+    iCol.append(card);
+  }
+
+  if (!resolved) {
+    const msg = node("p", "", "appeal-inline-msg");
+    const save = node("button", appeal.items.length > 1 ? "Сохранить решение по всем критериям" : "Сохранить решение", "primary");
+    save.type = "button";
+    save.addEventListener("click", async () => {
+      msg.textContent = "";
+      const decisions = [];
+      for (const c of controls) {
+        if (!c.state.action) { msg.textContent = `Выберите «Подтвердить» или «Изменить» для «${c.item.criterion_name}».`; return; }
+        if (c.reason.value.trim().length < 3) { msg.textContent = `Укажите причину решения для «${c.item.criterion_name}».`; c.reason.focus({preventScroll: true}); return; }
+        const d = {criterion_id: c.item.criterion_id, action: c.state.action, reason: c.reason.value.trim()};
+        if (c.state.action === "change") {
+          const raw = c.valueSelect.value;
+          d.new_value = c.criterion?.type === "scale" && raw !== "na" ? Number(raw) : raw;
+          d.evidence_index = Number(c.evSelect.value);
+        }
+        decisions.push(d);
+      }
+      save.disabled = true; save.textContent = "Сохраняем...";
+      try {
+        const updated = await requestJson(`/api/appeals/${encodeURIComponent(appeal.id)}/decision`, {
+          method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({decisions})});
+        notify(`Решение сохранено. Итог: ${fmtScore(updated.original_score)} → ${fmtScore(updated.final_score)}.`, "success");
+        renderCase(updated, conversation);
+        document.dispatchEvent(new CustomEvent("cqa:appeals-changed", {detail: {conversationId: appeal.conversation_id, fromCase: true}}));
+      } catch (error) { msg.textContent = `Ошибка: ${error.message}`; save.disabled = false; save.textContent = "Сохранить решение"; }
+    });
+    const foot = node("div", "", "case-save");
+    foot.append(msg, save);
+    iCol.append(foot);
+  } else {
+    const fin = node("div", "", "case-final");
+    fin.append(node("span", "Финальный результат", "muted small"), node("strong", fmtScore(appeal.final_score), `tone-${scoreTone(appeal.final_score)}`));
+    const v = verdict(appeal.final_score, appeal.final_result?.gross_violation);
+    fin.append(node("span", v.text, `status-badge ${v.tone}`));
+    iCol.append(fin);
+  }
+  grid.append(tCol, iCol);
+  page.append(grid);
+}
+
+// ---------- Свои диалоги ----------
+function setupAddView() {
+  document.querySelectorAll("[data-add-tab]").forEach(tab => tab.addEventListener("click", () => {
+    document.querySelectorAll("[data-add-tab]").forEach(t => t.setAttribute("aria-selected", String(t === tab)));
+    document.querySelectorAll("[data-add-pane]").forEach(p => p.hidden = p.dataset.addPane !== tab.dataset.addTab);
+  }));
+
+  $("add-text-form").addEventListener("submit", async event => {
+    event.preventDefault();
+    const button = event.submitter || event.target.querySelector("button[type=submit]");
+    button.disabled = true;
+    try {
+      const body = {text: $("add-text").value, channel: $("add-channel").value, language: $("add-language").value,
+        conversation_id: $("add-id").value.trim() || undefined, audio_url: $("add-audio").value.trim() || undefined};
+      const result = await requestJson("/api/conversations", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+      $("add-text").value = ""; $("add-id").value = ""; $("add-audio").value = "";
+      notify(`Диалог ${result.added[0]} добавлен.`, "success");
+      await refresh();
+      showView("evaluate");
+      await openConversation(result.added[0]);
+      keepWindowInView();
+    } catch (error) { notify(`Не удалось добавить: ${error.message}`, "error"); }
+    finally { button.disabled = false; }
+  });
+
+  const input = $("add-files");
+  const zone = $("dropzone");
+  input.addEventListener("change", () => uploadFiles([...input.files]).finally(() => { input.value = ""; }));
+  zone.addEventListener("dragover", e => { e.preventDefault(); zone.classList.add("over"); });
+  zone.addEventListener("dragleave", () => zone.classList.remove("over"));
+  zone.addEventListener("drop", e => { e.preventDefault(); zone.classList.remove("over"); uploadFiles([...e.dataTransfer.files]); });
+
+  $("add-group-form").addEventListener("submit", async event => {
+    event.preventDefault();
+    const groupId = $("group-id").value.trim();
+    const button = event.submitter || event.target.querySelector("button[type=submit]");
+    button.disabled = true;
+    notify(`Загружаем набор ${groupId}...`, "");
+    try {
+      const result = await requestJson(`/api/import?group_id=${encodeURIComponent(groupId)}`, {method: "POST"});
+      await refresh();
+      renderCustomList();
+      notify(`Набор ${result.group_id}: добавлено ${result.count} диалогов. Нажмите «Оценить с AI все…», чтобы обработать их.`, "success");
+    } catch (error) { notify(`Набор ${groupId}: ${error.message}`, "error"); }
+    finally { button.disabled = false; }
+  });
+
+  $("batch-ai").addEventListener("click", batchEvaluate);
+}
+
+async function uploadFiles(files) {
+  const status = $("file-status");
+  if (!files.length) return;
+  const records = [];
+  try {
+    for (const file of files) {
+      const text = await file.text();
+      if (file.name.toLowerCase().endsWith(".json")) {
+        let data;
+        try { data = JSON.parse(text); } catch { throw new Error(`${file.name}: не удалось прочитать JSON.`); }
+        if (data?.data?.records) data = data.data.records;
+        else if (data?.records) data = data.records;
+        records.push(...(Array.isArray(data) ? data : [data]));
+      } else {
+        const id = file.name.replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "-").slice(0, 80);
+        records.push({conversation_id: id, text, channel: $("file-channel").value, language: $("file-language").value});
+      }
+    }
+    status.textContent = `Загружаем ${records.length}...`;
+    const result = await requestJson("/api/conversations", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(records)});
+    status.textContent = `Добавлено: ${result.added.join(", ")}`;
+    notify(`Добавлено диалогов: ${result.count}.`, "success");
+    await refresh();
+    renderCustomList();
+  } catch (error) {
+    status.textContent = `Ошибка: ${error.message}`;
+    notify(`Загрузка файлов: ${error.message}`, "error");
+  }
+}
+
+function renderCustomList() {
+  const list = $("custom-list");
+  const custom = allConversations.filter(c => (c.origin || "DEV") !== "DEV");
+  $("custom-count").textContent = String(custom.length);
+  list.replaceChildren();
+  if (!custom.length) { list.append(node("p", "Пока нет — добавьте текст, файл или контрольный набор слева.", "muted small")); return; }
+  for (const c of custom) {
+    const row = node("div", "", "custom-row");
+    const open = node("button", "", "custom-open"); open.type = "button";
+    const score = scores[c.conversation_id]?.score;
+    const t = node("span", "", "list-text");
+    t.append(node("strong", c.conversation_id), node("span", `${originLabel(c.origin)} · ${KIND_LABEL[kindOf(c)]} · ${c.language || "?"} · ${c.message_count} реплик`));
+    open.append(t, node("span", fmtScore(score), `score-badge ${scoreTone(score)}`));
+    open.addEventListener("click", async () => { showView("evaluate"); await openConversation(c.conversation_id); keepWindowInView(); });
+    const del = node("button", "", "icon-btn danger"); del.type = "button";
+    del.title = `Удалить ${c.conversation_id}`; del.setAttribute("aria-label", del.title);
+    del.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M5 7h14M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    del.addEventListener("click", async () => {
+      if (!confirm(`Удалить диалог ${c.conversation_id}?`)) return;
+      try {
+        await requestJson(`/api/conversations/${encodeURIComponent(c.conversation_id)}`, {method: "DELETE"});
+        if (activeConversationId === c.conversation_id) { activeConversationId = null; activeConversation = null; }
+        await refresh(); renderCustomList();
+      } catch (error) { notify(`Удаление: ${error.message}`, "error"); }
+    });
+    row.append(open, del);
+    list.append(row);
+  }
+}
+
+async function batchEvaluate() {
+  const button = $("batch-ai"), status = $("batch-status");
+  const todo = allConversations.filter(c => (c.origin || "DEV") !== "DEV" && scores[c.conversation_id]?.score == null);
+  if (!todo.length) { status.textContent = "Все добавленные диалоги уже оценены."; return; }
+  button.disabled = true;
+  let ok = 0; const errors = [];
+  for (const [i, c] of todo.entries()) {
+    status.textContent = `Оцениваем ${i + 1} из ${todo.length}: ${c.conversation_id}...`;
+    try {
+      await requestJson(`/api/ai/evaluations/${encodeURIComponent(c.conversation_id)}?provider=auto&force=false`, {method: "POST"});
+      ok += 1;
+    } catch (error) { errors.push(`${c.conversation_id}: ${error.message}`); }
+  }
+  await loadScores();
+  renderCustomList();
+  status.textContent = `Готово: ${ok} из ${todo.length}.${errors.length ? " Ошибки: " + errors.slice(0, 3).join("; ") : ""}`;
+  button.disabled = false;
 }
 
 // ---------- Аналитика ----------
@@ -806,6 +1151,10 @@ document.querySelectorAll("[data-mode]").forEach(b => b.addEventListener("click"
 document.querySelectorAll(".side-nav [data-view]").forEach(b => b.addEventListener("click", () => showView(b.dataset.view)));
 document.querySelectorAll("[data-appeal-filter]").forEach(b => b.addEventListener("click", () => { appealFilter = b.dataset.appealFilter; renderAppealsTable(); }));
 document.addEventListener("cqa:show-view", e => showView(e.detail.view));
+document.addEventListener("cqa:open-case", e => openCase(e.detail.id));
+document.querySelectorAll("[data-open-view]").forEach(b => b.addEventListener("click", () => showView(b.dataset.openView)));
+$("origin-filter").addEventListener("change", renderList);
+setupAddView();
 document.addEventListener("cqa:appeals-changed", async () => { await loadAppeals(); await loadScores(); });
 
 $("load-checklist").addEventListener("click", async () => {

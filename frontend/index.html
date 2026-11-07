@@ -17,7 +17,14 @@
   <!-- ЭКРАН 1: лендинг. Страница не прокручивается, пока не нажата кнопка. -->
   <section id="hero" class="hero" aria-labelledby="hero-title">
     <nav class="nav wrap" aria-label="Главное меню">
-      <span></span>
+      <a class="brand" href="#hero" data-home aria-label="Freedom Broker — на главную">
+        <!-- Чтобы поставить официальный логотип, положите файл frontend/logo.png (или .svg) -->
+        <img class="brand-img" src="/static/logo.png" alt="" hidden onload="this.hidden=false;this.nextElementSibling.hidden=true" onerror="this.remove()" />
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M7 19V5h10M7 12h7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+        <span class="brand-text"><strong>Freedom Broker</strong><small>Контроль качества операторов</small></span>
+      </a>
       <div class="nav-links">
         <button type="button" class="nav-link" data-enter="how">Как это работает</button>
         <button type="button" class="nav-link" data-enter="workspace" data-view="evaluate">Скрипты</button>
@@ -38,8 +45,8 @@
 
     <dl class="hero-stats wrap">
       <div><dt>∞</dt><dd>скриптов, звонков и переписок</dd></div>
-      <div><dt>∞</dt><dd>критериев в чек-листе</dd></div>
       <div><dt>2&nbsp;AI</dt><dd>GroqCloud и Google Gemini</dd></div>
+      <div><dt>∞</dt><dd>критериев в чек-листе</dd></div>
     </dl>
 
     <button type="button" class="scroll-cue" data-enter="how" aria-label="Перейти к содержимому">
@@ -78,6 +85,9 @@
             <button type="button" data-view="evaluate" aria-current="page">
               <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 5h16v11H8l-4 4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 10.5l2 2 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
               <span>Оценка диалогов</span></button>
+            <button type="button" data-view="add">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+              <span>Добавить диалоги</span></button>
             <button type="button" data-view="appeals">
               <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3l7 4v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 8v4m0 3v.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
               <span>Апелляции</span><em class="side-badge" id="badge-appeals" hidden></em></button>
@@ -95,10 +105,6 @@
             <button type="button" class="side-home" data-home>
               <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
               <span>На главную</span></button>
-            <div class="side-user">
-              <span class="avatar">A</span>
-              <span class="side-user-text"><strong>Админ</strong><small>API: <span id="api-status">—</span></small></span>
-            </div>
           </div>
         </aside>
 
@@ -118,6 +124,11 @@
                 </select>
               </label>
               <label class="chip-select">
+                <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                <span>Набор:</span>
+                <select id="origin-filter" aria-label="Набор диалогов"><option value="">Все</option></select>
+              </label>
+              <label class="chip-select">
                 <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3.5 12h17M12 3.5c2.5 2.5 3.5 5.5 3.5 8.5s-1 6-3.5 8.5c-2.5-2.5-3.5-5.5-3.5-8.5s1-6 3.5-8.5" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
                 <span>Язык:</span>
                 <select id="language-filter" aria-label="Язык"><option value="">Все</option></select>
@@ -135,6 +146,8 @@
             <aside class="col col-list" aria-labelledby="list-title">
               <div class="col-head">
                 <h4 id="list-title">Диалоги (<span id="list-count">0</span>)</h4>
+                <button type="button" class="icon-btn" data-open-view="add" title="Добавить свои диалоги" aria-label="Добавить свои диалоги">
+                  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
                 <select id="sort-select" class="mini-select" aria-label="Сортировка">
                   <option value="id">По ID</option><option value="score-desc">Балл ↓</option><option value="score-asc">Балл ↑</option><option value="unscored">Без оценки</option>
                 </select>
@@ -200,9 +213,76 @@
             </aside>
           </section>
 
+          <!-- Вид: Добавить свои диалоги -->
+          <section class="view view-add" data-view-panel="add" hidden>
+            <div class="view-head"><p class="muted">Добавьте диалоги, которых нет среди 65 DEV: они сразу появятся в списке и оцениваются по текущему чек-листу.</p></div>
+            <div class="add-grid">
+              <div class="add-card">
+                <div class="seg-tabs" role="tablist" aria-label="Способ добавления">
+                  <button type="button" role="tab" data-add-tab="text" aria-selected="true">Вставить текст</button>
+                  <button type="button" role="tab" data-add-tab="file" aria-selected="false">Загрузить файл</button>
+                  <button type="button" role="tab" data-add-tab="group" aria-selected="false">Набор по group_id</button>
+                </div>
+
+                <form id="add-text-form" class="add-pane" data-add-pane="text">
+                  <div class="form-row">
+                    <label class="edit-field"><span>ID диалога (необязательно)</span><input id="add-id" placeholder="например, test-ru-001" maxlength="80" /></label>
+                    <label class="edit-field"><span>Канал</span><select id="add-channel"><option value="agent chat">Переписка</option><option value="voice call">Звонок</option></select></label>
+                    <label class="edit-field"><span>Язык</span><select id="add-language"><option>RU</option><option>KZ</option><option>EN</option></select></label>
+                  </div>
+                  <label class="edit-field"><span>Ссылка на запись звонка (необязательно)</span><input id="add-audio" type="url" placeholder="https://..." /></label>
+                  <label class="edit-field"><span>Текст диалога — каждая реплика с новой строки, в начале роль</span>
+                    <textarea id="add-text" rows="10" spellcheck="false" placeholder="[00:01] Клиент: Здравствуйте, не могу вывести деньги.
+[00:02] Бот: Я AIM, AI-ассистент. Перевожу на оператора.
+[00:05] Оператор: Добрый день! Меня зовут Вера. Уточните, пожалуйста, номер счёта.
+Клиент: 123456
+Оператор: Спасибо! Вывод будет доступен после обновления данных. Хорошего дня!"></textarea></label>
+                  <p class="muted small">Роли: Оператор / Клиент / Бот / Система (или operator, client, bot, system). Время в начале строки — по желанию. Строка без роли продолжает предыдущую реплику.</p>
+                  <div class="actions start"><button type="submit" class="primary">Добавить и открыть</button></div>
+                </form>
+
+                <div class="add-pane" data-add-pane="file" hidden>
+                  <label class="dropzone" id="dropzone">
+                    <input id="add-files" type="file" accept=".txt,.json,text/plain,application/json" multiple />
+                    <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M12 16V4m0 0l-4 4m4-4l4 4M5 20h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <strong>Перетащите файлы или нажмите, чтобы выбрать</strong>
+                    <span class="muted small">.txt — один диалог в файле (роль: текст); .json — запись, список записей или ответ API организаторов</span>
+                  </label>
+                  <div class="form-row">
+                    <label class="edit-field"><span>Канал для .txt</span><select id="file-channel"><option value="agent chat">Переписка</option><option value="voice call">Звонок</option></select></label>
+                    <label class="edit-field"><span>Язык для .txt</span><select id="file-language"><option>RU</option><option>KZ</option><option>EN</option></select></label>
+                  </div>
+                  <p id="file-status" class="muted small"></p>
+                </div>
+
+                <form id="add-group-form" class="add-pane" data-add-pane="group" hidden>
+                  <p class="muted small">Контрольный набор организаторов: укажите group_id, который они сообщат. Диалоги добавятся к DEV — ничего не удаляется.</p>
+                  <div class="form-row two">
+                    <label class="edit-field"><span>group_id</span><input id="group-id" placeholder="например, CONTROL" required pattern="[A-Za-z0-9_-]{1,64}" /></label>
+                    <div class="actions start end"><button type="submit" class="primary">Загрузить набор</button></div>
+                  </div>
+                </form>
+              </div>
+
+              <div class="add-card">
+                <div class="col-head"><h4>Добавленные диалоги (<span id="custom-count">0</span>)</h4></div>
+                <div class="batch">
+                  <button type="button" id="batch-ai" class="secondary">Оценить с AI все добавленные без оценки</button>
+                  <p id="batch-status" class="muted small"></p>
+                </div>
+                <div id="custom-list" class="custom-list"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Вид: карточка апелляции (отдельная страница проверяющего) -->
+          <section class="view view-case" data-view-panel="case" hidden>
+            <div id="case-page"></div>
+          </section>
+
           <!-- Вид: Апелляции -->
           <section class="view view-table" data-view-panel="appeals" hidden>
-            <div class="view-head"><p class="muted">Все обращения пользователей по оценкам. Нажмите на строку, чтобы открыть диалог.</p>
+            <div class="view-head"><p class="muted">Все обращения пользователей по оценкам. Нажмите на строку, чтобы открыть карточку апелляции.</p>
               <div class="pill-filter" role="group" aria-label="Статус">
                 <button type="button" data-appeal-filter="all" aria-pressed="true">Все</button>
                 <button type="button" data-appeal-filter="pending" aria-pressed="false">Открытые</button>

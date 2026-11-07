@@ -15,6 +15,8 @@ class DownloadTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.patcher = patch.object(main, "DATA_FILE", Path(self.tmp.name) / "dev_records.json")
         self.patcher.start()
+        self.custom_patcher = patch.object(main, "CUSTOM_FILE", Path(self.tmp.name) / "custom_records.json")
+        self.custom_patcher.start()
         records = [
             {"conversation_id": "chat-1", "language": "RU", "channel": "agent chat", "transcript": [
                 {"speaker": "client", "timestamp": "00:00", "text": "Привет"},
@@ -27,6 +29,7 @@ class DownloadTests(unittest.TestCase):
 
     def tearDown(self):
         self.patcher.stop()
+        self.custom_patcher.stop()
         self.tmp.cleanup()
 
     def test_list_has_kind(self):
