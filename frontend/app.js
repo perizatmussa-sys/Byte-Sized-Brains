@@ -149,53 +149,53 @@ function updateCounts() {
 
 const originLabel = (o) => o === "DEV" ? "DEV (65)" : o === "custom" ? "Мои диалоги" : o;
 
-// ---------- Список диалогов ----------
+// ---------- Выбор скрипта ----------
 function filteredConversations() {
-  const search = $("search").value.trim().toLowerCase();
   const channel = $("channel-filter").value;
   const language = $("language-filter").value;
   const origin = $("origin-filter").value;
-  const list = allConversations.filter(c =>
+  return allConversations.filter(c =>
     (!origin || (c.origin || "DEV") === origin) &&
-    (!search || (c.conversation_id || "").toLowerCase().includes(search) || (c.search_text || "").includes(search)) &&
     (channel === "all" || kindOf(c) === channel) &&
     (!language || c.language === language));
-  const sort = $("sort-select").value;
-  const scoreOf = c => scores[c.conversation_id]?.score;
-  if (sort === "score-desc") list.sort((a, b) => (scoreOf(b) ?? -1) - (scoreOf(a) ?? -1));
-  if (sort === "score-asc") list.sort((a, b) => (scoreOf(a) ?? 999) - (scoreOf(b) ?? 999));
-  if (sort === "unscored") list.sort((a, b) => (scoreOf(a) == null ? 0 : 1) - (scoreOf(b) == null ? 0 : 1));
-  return list;
 }
 
 function renderList() {
-  const container = $("conversation-list");
+  const select = $("script-select");
   const filtered = filteredConversations();
   $("list-count").textContent = String(filtered.length);
-  container.replaceChildren();
-  if (!filtered.length) {
-    container.append(node("div", allConversations.length ? "Ничего не найдено. Измените фильтр." : "Пока нет диалогов. Нажмите «Обновить» вверху.", "muted list-empty"));
-    return;
+  select.replaceChildren(new Option(filtered.length
+    ? `— Выберите готовый скрипт (${filtered.length}) —`
+    : (allConversations.length ? "— Нет скриптов по фильтрам —" : "— Скрипты загружаются… —"), ""));
+  const groups = [
+    ["Мои диалоги и контрольные наборы", c => (c.origin || "DEV") !== "DEV"],
+    ["Звонки", c => (c.origin || "DEV") === "DEV" && kindOf(c) === "call"],
+    ["Переписки", c => (c.origin || "DEV") === "DEV" && kindOf(c) === "chat"],
+  ];
+  for (const [label, test] of groups) {
+    const items = filtered.filter(test);
+    if (!items.length) continue;
+    const group = document.createElement("optgroup");
+    group.label = `${label} (${items.length})`;
+    for (const c of items) {
+      const score = scores[c.conversation_id]?.score;
+      const origin = (c.origin || "DEV") !== "DEV" ? ` · ${c.origin === "custom" ? "свой" : c.origin}` : "";
+      const text = `${c.conversation_id} · ${c.language || "?"} · ${c.message_count} реплик${origin}${score != null ? " · " + fmtScore(score) : ""}`;
+      group.append(new Option(text, c.conversation_id));
+    }
+    select.append(group);
   }
-  for (const conversation of filtered) {
-    const kind = kindOf(conversation);
-    const id = conversation.conversation_id;
-    const button = node("button", "", "list-item" + (id === activeConversationId ? " selected" : ""));
-    button.type = "button";
-    button.setAttribute("role", "listitem");
-    const icon = svg(ICONS[kind]);
-    icon.classList.add("kind-icon", kind);
-    const text = node("span", "", "list-text");
-    const title = node("strong", id || "Без ID");
-    if (conversation.origin && conversation.origin !== "DEV") title.append(node("em", conversation.origin === "custom" ? "свой" : conversation.origin, "origin-tag"));
-    text.append(title, node("span", `${KIND_LABEL[kind]} · ${conversation.language || "?"} · ${conversation.message_count} реплик`));
-    const score = scores[id]?.score;
-    const badge = node("span", fmtScore(score), `score-badge ${scoreTone(score)}`);
-    if (score != null) badge.title = `Источник: ${SOURCE_LABEL[scores[id].primary] || ""}`;
-    button.append(icon, text, badge);
-    button.addEventListener("click", () => openConversation(id));
-    container.append(button);
+  // Если открытый диалог скрыт фильтром — всё равно показываем его в списке.
+  if (activeConversationId && !filtered.some(c => c.conversation_id === activeConversationId)) {
+    select.append(new Option(`${activeConversationId} (открыт)`, activeConversationId));
   }
+  select.value = activeConversationId || "";
+}
+
+function openRandom() {
+  const pool = filteredConversations().filter(c => c.conversation_id !== activeConversationId);
+  if (!pool.length) { notify("Нет скриптов по выбранным фильтрам.", "error"); return; }
+  openConversation(pool[Math.floor(Math.random() * pool.length)].conversation_id);
 }
 
 function updateExportLinks() {
@@ -251,10 +251,19 @@ async function openConversation(conversationId) {
 
     renderList();
     renderSummary();
-    if (window.matchMedia("(max-width: 1100px)").matches) $("summary").scrollIntoView({behavior: "smooth", block: "start"});
     await renderAssessment();
     document.dispatchEvent(new CustomEvent("cqa:conversation-opened", {detail: {conversationId}}));
   } catch (error) { notify(`Ошибка открытия диалога: ${error.message}`, "error"); }
+}
+
+function resetConversationView() {
+  activeConversationId = null; activeConversation = null;
+  for (const id of ["messages", "audio-area", "assessment-area", "appeals-panel"]) $(id).replaceChildren();
+  $("empty-state").hidden = false;
+  $("download-actions").hidden = true;
+  $("conversation-title").textContent = "Транскрипт диалога";
+  $("conversation-meta").textContent = "Выберите готовый скрипт выше или добавьте свой.";
+  renderSummary();
 }
 
 // ---------- Итоговая панель ----------
@@ -289,7 +298,9 @@ function renderSummary() {
   }
   $("summary-note").textContent = !activeConversationId ? "Откройте диалог и оцените его с AI или вручную."
     : !result ? (activeMode === "ai" ? "Нажмите «Оценить с AI», чтобы получить балл." : "Заполните ручную оценку ниже.")
-    : `Источник: ${SOURCE_LABEL[key]}${result.gross_violation ? " · найдено грубое нарушение" : ""}`;
+    : `Источник: ${SOURCE_LABEL[key]}${result.gross_violation ? " · найдено грубое нарушение" : ""}${
+      currentChecklist && result.checklist_version != null && result.checklist_version !== currentChecklist.version
+        ? ` · оценка по чек-листу v${result.checklist_version}, текущий v${currentChecklist.version} — оцените заново, чтобы применить изменения` : ""}`;
 
   const list = $("summary-criteria");
   list.replaceChildren();
@@ -310,7 +321,8 @@ function renderSummary() {
       label = `${Math.round(row.percent)}%`;
     }
     const mark = svg(icon); mark.classList.add("crit-icon", tone);
-    button.append(mark, node("span", row.name, "crit-name"), node("span", label, `crit-pill ${tone}`), svg(ICONS.chevron));
+    const currentName = currentChecklist?.criteria?.find(c => c.id === row.id)?.name;
+    button.append(mark, node("span", currentName || row.name, "crit-name"), node("span", label, `crit-pill ${tone}`), svg(ICONS.chevron));
     if (row.reason) button.title = row.reason;
     if (Number.isInteger(row.evidence_index)) button.addEventListener("click", () => jumpToMessage(row.evidence_index));
     else button.disabled = true;
@@ -941,7 +953,7 @@ function renderCustomList() {
       if (!confirm(`Удалить диалог ${c.conversation_id}?`)) return;
       try {
         await requestJson(`/api/conversations/${encodeURIComponent(c.conversation_id)}`, {method: "DELETE"});
-        if (activeConversationId === c.conversation_id) { activeConversationId = null; activeConversation = null; }
+        if (activeConversationId === c.conversation_id) resetConversationView();
         await refresh(); renderCustomList();
       } catch (error) { notify(`Удаление: ${error.message}`, "error"); }
     });
@@ -1073,6 +1085,17 @@ function labelWithInput(title, value, onchange, type = "text") {
   return label;
 }
 
+const TRANSLIT = {а:"a",б:"b",в:"v",г:"g",д:"d",е:"e",ё:"e",ж:"zh",з:"z",и:"i",й:"y",к:"k",л:"l",м:"m",н:"n",о:"o",п:"p",р:"r",с:"s",т:"t",у:"u",ф:"f",х:"h",ц:"ts",ч:"ch",ш:"sh",щ:"sch",ъ:"",ы:"y",ь:"",э:"e",ю:"yu",я:"ya",
+  ә:"a",ғ:"g",қ:"q",ң:"n",ө:"o",ұ:"u",ү:"u",һ:"h",і:"i"};
+
+function uniqueCriterionId(name, self) {
+  const base = String(name || "").toLowerCase().split("").map(ch => TRANSLIT[ch] ?? ch).join("")
+    .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40) || "criterion";
+  let id = base, n = 2;
+  while (draftCriteria.some(c => c !== self && c.id === id)) id = `${base}_${n++}`;
+  return id;
+}
+
 async function loadChecklist() {
   currentChecklist = await requestJson("/api/checklist");
   draftCriteria = structuredClone(currentChecklist.criteria);
@@ -1087,14 +1110,24 @@ function renderEditor() {
   draftCriteria.forEach((criterion, position) => {
     const card = node("div", "", "criterion-editor");
     const top = node("div", "", "panel-heading");
-    top.append(node("strong", `${position + 1}. ${criterion.id}`));
+    const heading = node("div", "", "crit-heading");
+    const headName = node("strong", `${position + 1}. ${criterion.name || "Без названия"}`);
+    const headId = node("span", `ID: ${criterion.id}${criterion._new ? " · новый, ещё не сохранён" : ""}`, "muted small mono");
+    heading.append(headName, headId);
+    top.append(heading);
     const remove = node("button", "Удалить", "danger-outline");
     remove.type = "button";
     remove.addEventListener("click", () => { draftCriteria.splice(position, 1); renderEditor(); });
     top.append(remove);
     card.append(top);
     const fields = node("div", "", "editor-grid");
-    fields.append(labelWithInput("Название", criterion.name, value => criterion.name = value));
+    fields.append(labelWithInput("Название", criterion.name, value => {
+      criterion.name = value;
+      // Новому (ещё не сохранённому) критерию ID подбирается по названию.
+      if (criterion._new) criterion.id = uniqueCriterionId(value, criterion);
+      headName.textContent = `${position + 1}. ${value.trim() || "Без названия"}`;
+      headId.textContent = `ID: ${criterion.id}${criterion._new ? " · новый, ещё не сохранён" : ""}`;
+    }));
     fields.append(labelWithInput("Секция", criterion.section, value => criterion.section = value));
     fields.append(labelWithInput("Вес", criterion.weight, value => criterion.weight = Number(value), "number"));
     const typeField = node("label", "", "edit-field");
@@ -1143,8 +1176,14 @@ async function importDev() {
 
 // ---------- События ----------
 $("import-btn").addEventListener("click", importDev);
-$("search").addEventListener("input", renderList);
-$("sort-select").addEventListener("change", renderList);
+$("script-select").addEventListener("change", e => { if (e.target.value) openConversation(e.target.value); });
+$("random-script").addEventListener("click", openRandom);
+$("empty-random").addEventListener("click", openRandom);
+$("empty-pick").addEventListener("click", () => {
+  const select = $("script-select");
+  select.focus();
+  try { select.showPicker(); } catch { /* старые браузеры: достаточно фокуса */ }
+});
 $("language-filter").addEventListener("change", renderList);
 $("channel-filter").addEventListener("change", () => { updateExportLinks(); renderList(); });
 document.querySelectorAll("[data-mode]").forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));
@@ -1163,11 +1202,12 @@ $("load-checklist").addEventListener("click", async () => {
 });
 
 $("add-criterion").addEventListener("click", () => {
-  let counter = 1;
-  while (draftCriteria.some(c => c.id === `extra_${counter}`)) counter += 1;
-  draftCriteria.push({id: `extra_${counter}`, section: "Дополнительно", name: "Новый критерий", weight: 5,
-    type: "yes_no", allow_na: false, scale: [], rule: "Опишите, что значит Да.", na_rule: ""});
+  const fresh = {_new: true, id: "", section: "Дополнительно", name: "Новый критерий", weight: 5,
+    type: "yes_no", allow_na: false, scale: [], rule: "Опишите, что значит Да.", na_rule: ""};
+  fresh.id = uniqueCriterionId(fresh.name, fresh);
+  draftCriteria.push(fresh);
   renderEditor();
+  $("criteria-editor").lastElementChild?.querySelector("input")?.select();
   $("criteria-editor").lastElementChild?.scrollIntoView({behavior: "smooth", block: "center"});
 });
 
@@ -1190,7 +1230,7 @@ refresh()
     // Диалоги ещё не загружены, но ссылка есть — загружаем DEV автоматически.
     if (!status.data_loaded && status.api_configured) return importDev();
     notify(status.data_loaded
-      ? `Диалоги готовы: ${status.record_count}. Выберите диалог в списке.`
+      ? `Диалоги готовы: ${status.record_count}. Выберите скрипт для проверки.`
       : "Нет ссылки на DEV API: добавьте CQA_API_URL в файл .env и перезапустите сервер.", status.data_loaded ? "success" : "error");
   })
   .catch(error => notify(`Ошибка подключения к серверу: ${error.message}`, "error"));

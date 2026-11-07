@@ -358,6 +358,7 @@ def result_summary(result: dict[str, Any]) -> dict[str, Any]:
         "score": result.get("score"),
         "gross_violation": bool(result.get("gross_violation")),
         "created_at": result.get("created_at"),
+        "checklist_version": result.get("checklist_version"),
         "criteria": [{"id": r.get("id"), "name": r.get("name"), "type": r.get("type"),
                       "value": r.get("value"), "percent": criterion_percent(r),
                       "reason": r.get("reason"), "evidence_index": r.get("evidence_index")}

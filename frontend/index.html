@@ -18,12 +18,8 @@
   <section id="hero" class="hero" aria-labelledby="hero-title">
     <nav class="nav wrap" aria-label="Главное меню">
       <a class="brand" href="#hero" data-home aria-label="Freedom Broker — на главную">
-        <!-- Чтобы поставить официальный логотип, положите файл frontend/logo.png (или .svg) -->
-        <img class="brand-img" src="/static/logo.png" alt="" hidden onload="this.hidden=false;this.nextElementSibling.hidden=true" onerror="this.remove()" />
-        <span class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M7 19V5h10M7 12h7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </span>
-        <span class="brand-text"><strong>Freedom Broker</strong><small>Контроль качества операторов</small></span>
+        <img class="brand-img" src="/static/logo.png" alt="Freedom Broker" width="586" height="184" />
+        <span class="brand-sub">Контроль качества<br />операторов</span>
       </a>
       <div class="nav-links">
         <button type="button" class="nav-link" data-enter="how">Как это работает</button>
@@ -143,27 +139,27 @@
 
           <!-- Вид: Оценка диалогов -->
           <section class="view view-evaluate" data-view-panel="evaluate">
-            <aside class="col col-list" aria-labelledby="list-title">
-              <div class="col-head">
-                <h4 id="list-title">Диалоги (<span id="list-count">0</span>)</h4>
-                <button type="button" class="icon-btn" data-open-view="add" title="Добавить свои диалоги" aria-label="Добавить свои диалоги">
-                  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
-                <select id="sort-select" class="mini-select" aria-label="Сортировка">
-                  <option value="id">По ID</option><option value="score-desc">Балл ↓</option><option value="score-asc">Балл ↑</option><option value="unscored">Без оценки</option>
-                </select>
+            <div class="picker" role="group" aria-labelledby="picker-title">
+              <div class="picker-main">
+                <span id="picker-title" class="picker-label">Скрипт для проверки</span>
+                <div class="picker-row">
+                  <select id="script-select" aria-labelledby="picker-title"><option value="">— Выберите готовый скрипт —</option></select>
+                  <button type="button" id="random-script" class="btn btn-ghost btn-sm" title="Открыть случайный скрипт">
+                    <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M16 4h4v4M4 20l16-16M20 16v4h-4M15 15l5 5M4 4l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    Случайный</button>
+                  <span class="picker-or">или</span>
+                  <button type="button" class="btn btn-primary btn-sm" data-open-view="add">
+                    <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+                    Добавить свой</button>
+                </div>
+                <span class="muted small" id="picker-hint"><span id="list-count">0</span> скриптов по выбранным фильтрам</span>
               </div>
-              <label class="search-field">
-                <span class="sr-only">Поиск по ID или тексту</span>
-                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-                <input id="search" placeholder="Поиск по ID или тексту…" autocomplete="off" />
-              </label>
-              <div id="conversation-list" class="list" role="list"></div>
               <div class="export">
                 <span class="muted small">Скачать <span id="export-label">все</span>:</span>
                 <a id="export-txt" class="btn btn-ghost btn-xs" href="/api/export?kind=all&format=txt" download>TXT</a>
                 <a id="export-json" class="btn btn-ghost btn-xs" href="/api/export?kind=all&format=json" download>JSON</a>
               </div>
-            </aside>
+            </div>
 
             <section class="col col-center" aria-labelledby="conversation-title">
               <div class="mode-tabs" role="tablist" aria-label="Режим оценки">
@@ -178,7 +174,7 @@
               <div class="transcript-head">
                 <div>
                   <h4 id="conversation-title">Транскрипт диалога</h4>
-                  <div id="conversation-meta" class="muted small">Выберите диалог в списке слева.</div>
+                  <div id="conversation-meta" class="muted small">Выберите готовый скрипт выше или добавьте свой.</div>
                 </div>
                 <div id="download-actions" class="download-actions" hidden>
                   <a id="download-txt" class="btn btn-ghost btn-xs" href="#" download title="Скачать TXT">
@@ -192,7 +188,13 @@
                 <div class="empty-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" width="28" height="28"><path d="M4 5h16v11H8l-4 4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8 9h8M8 12h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
                 </div>
-                <p>Диалог ещё не выбран</p>
+                <p><strong>Выберите готовый скрипт или добавьте свой</strong></p>
+                <p class="muted small">65 скриптов DEV уже загружены: звонки и переписки на RU, KZ и EN.</p>
+                <div class="empty-actions">
+                  <button type="button" class="btn btn-ghost btn-sm" id="empty-pick">Выбрать готовый</button>
+                  <button type="button" class="btn btn-ghost btn-sm" id="empty-random">Случайный скрипт</button>
+                  <button type="button" class="btn btn-primary btn-sm" data-open-view="add">+ Добавить свой</button>
+                </div>
               </div>
               <div id="messages" class="messages"></div>
               <section id="assessment-area" class="assessment"></section>
