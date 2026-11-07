@@ -140,3 +140,42 @@ def get_conversation(conversation_id: str):
         if record.get("conversation_id") == conversation_id:
             return record
     raise HTTPException(status_code=404, detail="Диалог не найден.")
+
+# --------------------------------------------------
+# Этап 2: редактируемый чек-лист и проверенная математика.
+# Оценки на этом этапе вводит человек; AI подключим отдельно.
+# --------------------------------------------------
+from .quality import (checklist, validate_checklist, save_json, CONFIG_FILE,
+                      evaluate, saved_evaluations, save_evaluation)
+
+
+@app.get("/api/checklist")
+def get_checklist():
+    return checklist()
+
+
+@app.put("/api/checklist")
+def save_checklist(payload: dict[str, Any]):
+    config = validate_checklist(payload)
+    save_json(CONFIG_FILE, config)
+    return config
+
+
+@app.get("/api/evaluations/{conversation_id}")
+def get_evaluation(conversation_id: str):
+    result = saved_evaluations().get(conversation_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Этот диалог ещё не оценён.")
+    return result
+
+
+@app.post("/api/evaluations/{conversation_id}")
+def submit_manual_evaluation(conversation_id: str, payload: dict[str, Any]):
+    conversation = next((c for c in read_saved_records()
+                         if c.get("conversation_id") == conversation_id), None)
+    if conversation is None:
+        raise HTTPException(status_code=404, detail="Диалог не найден.")
+    result = evaluate(conversation, checklist(), payload.get("answers"))
+    result["mode"] = "manual"  # Нельзя выдавать ручную оценку за оценку AI.
+    save_evaluation(result)
+    return result
