@@ -1231,7 +1231,7 @@ refresh()
     if (!status.data_loaded && status.api_configured) return importDev();
     notify(status.data_loaded
       ? `Диалоги готовы: ${status.record_count}. Выберите скрипт для проверки.`
-      : "Нет ссылки на DEV API: добавьте CQA_API_URL в файл .env и перезапустите сервер.", status.data_loaded ? "success" : "error");
+      : (status.api_problem || "Нет ссылки на DEV API: добавьте CQA_API_URL в файл .env и перезапустите сервер."), status.data_loaded ? "success" : "error");
   })
   .catch(error => notify(`Ошибка подключения к серверу: ${error.message}`, "error"));
 loadChecklist().catch(error => notify(`Ошибка загрузки чек-листа: ${error.message}`, "error"));

@@ -21,7 +21,19 @@ ROOT = Path(__file__).resolve().parent.parent
 FRONTEND = ROOT / "frontend"
 DATA_FILE = ROOT / "data" / "dev_records.json"
 CUSTOM_FILE = ROOT / "data" / "custom_records.json"  # свои диалоги и контрольные наборы
-load_dotenv(ROOT / ".env")
+# Windows-блокнот часто сохраняет «.env» как «.env.txt» — принимаем оба варианта.
+ENV_FILE = next((p for p in (ROOT / ".env", ROOT / ".env.txt") if p.is_file()), ROOT / ".env")
+load_dotenv(ENV_FILE)
+
+
+def env_problem() -> str:
+    """Понятное объяснение, почему не найдена ссылка CQA_API_URL."""
+    if not ENV_FILE.is_file():
+        hint = " Сейчас ссылка есть только в .env.example — этот файл сервер не читает." if (ROOT / ".env.example").is_file() else ""
+        return (f"Нет файла .env в папке проекта: {ROOT}.{hint} Создайте файл .env рядом с папкой backend, "
+                "вставьте строку CQA_API_URL=… и перезапустите сервер.")
+    return (f"В файле {ENV_FILE} нет строки CQA_API_URL=… (или она пустая). "
+            "Вставьте ссылку из PDF и перезапустите сервер.")
 
 app = FastAPI(title="Byte-Sized-Brains CQA", version="0.1.0")
 app.mount("/static", StaticFiles(directory=str(FRONTEND)), name="static")
@@ -89,6 +101,9 @@ def get_status():
     records = read_saved_records()
     return {
         "api_configured": bool(os.getenv("CQA_API_URL", "").strip()),
+        "env_file": str(ENV_FILE),
+        "env_file_found": ENV_FILE.is_file(),
+        "api_problem": None if os.getenv("CQA_API_URL", "").strip() else env_problem(),
         "data_loaded": DATA_FILE.exists(),
         "record_count": len(records),
     }
@@ -109,7 +124,7 @@ def import_dev(group_id: str = ""):
     group_id = group_id.strip()
     api_url = os.getenv("CQA_API_URL", "").strip()
     if not api_url:
-        raise HTTPException(status_code=400, detail="Добавьте CQA_API_URL в файл .env и перезапустите сервер.")
+        raise HTTPException(status_code=400, detail=env_problem())
     if not api_url.startswith("https://"):
         raise HTTPException(status_code=400, detail="CQA_API_URL должен начинаться с https://")
 
