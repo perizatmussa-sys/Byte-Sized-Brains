@@ -39,6 +39,16 @@ app = FastAPI(title="Byte-Sized-Brains CQA", version="0.1.0")
 app.mount("/static", StaticFiles(directory=str(FRONTEND)), name="static")
 
 
+@app.middleware("http")
+async def always_fresh_frontend(request, call_next):
+    """Браузер всегда сверяет HTML/CSS/JS с сервером — после обновления файлов
+    не останется смеси старого app.js / style.css с новой страницей."""
+    response = await call_next(request)
+    if request.url.path == "/" or request.url.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return response
+
+
 def read_saved_records() -> list[dict[str, Any]]:
     """Все диалоги: DEV из API + добавленные пользователем / контрольные наборы."""
     custom = read_custom_records()
