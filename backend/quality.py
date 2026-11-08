@@ -105,6 +105,8 @@ def validate_checklist(body: dict[str, Any]) -> dict[str, Any]:
         allowed_na = bool(c.get("allow_na", False))
         if ctype == "flag" and allowed_na:
             raise HTTPException(422, f"Критерий {ident}: флаг не допускает N/A.")
+        if allowed_na and not str(c.get("na_rule", "")).strip():
+            raise HTTPException(422, f"Критерий «{name}»: N/A разрешён, но не указано, когда он допускается.")
         raw_scale = c.get("scale", [])
         if ctype == "scale":
             if not isinstance(raw_scale, list) or len(raw_scale) < 2 or not all(type(x) is int and x >= 0 for x in raw_scale):
