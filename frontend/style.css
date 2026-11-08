@@ -525,3 +525,95 @@ footer { color: var(--muted); margin: 22px 0 8px; font-size: 13px; text-align: c
 
 .crit-heading { display: grid; gap: 2px; }
 .criterion-editor .crit-heading strong { font-family: var(--font); font-size: 15px; }
+
+/* ---------- Чек-листы ---------- */
+.view-checklist { display: grid; gap: 14px; align-content: start; }
+.cl-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.cl-title { display: flex; align-items: center; gap: 14px; }
+.cl-title h3 { margin: 0; font-size: 22px; font-weight: 800; }
+.cl-title p { margin: 2px 0 0; }
+.cl-title-icon { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 13px; background: rgba(76, 155, 255, .12); border: 1px solid var(--line-strong); color: var(--text); }
+.cl-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cl-current { display: flex; align-items: center; gap: 10px; padding: 6px 12px; border: 1px solid var(--line-strong); border-radius: 12px; background: rgba(0, 0, 0, .2); color: var(--text-2); min-width: 260px; }
+.cl-current:focus-within { border-color: var(--teal); }
+.cl-current-text { display: grid; flex: 1; min-width: 0; }
+.cl-current-text small { font-size: 11px; color: var(--muted); }
+.cl-current select { border: 0; background: transparent; padding: 0 2px; font-weight: 700; font-size: 14px; box-shadow: none; }
+.icon-btn-lg { width: 40px; height: 40px; border-radius: 11px; }
+.icon-btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn-outline { background: transparent; color: var(--teal); border: 1px solid rgba(46, 230, 197, .6); }
+.btn-outline:hover { background: rgba(46, 230, 197, .08); }
+.menu-wrap { position: relative; }
+.menu-pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 40; min-width: 260px; display: grid; padding: 6px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surface-solid); box-shadow: 0 18px 40px -12px rgba(0, 0, 0, .7); }
+.menu-pop button { text-align: left; border: 0; background: none; padding: 9px 12px; border-radius: 8px; font-size: 14px; color: var(--text); }
+.menu-pop button:hover { background: rgba(255, 255, 255, .06); }
+.menu-pop button.danger { color: var(--err); }
+
+.cl-grid { display: grid; grid-template-columns: minmax(300px, 0.85fr) minmax(0, 1.15fr); gap: 14px; align-items: start; }
+.cl-card { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 16px; display: grid; gap: 10px; align-content: start; }
+.cl-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.cl-card-head h4 { margin: 0; font-size: 17px; }
+.cl-card > p { margin: 0; }
+.cl-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.cl-item { display: flex; align-items: stretch; gap: 2px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255, 255, 255, .02); transition: border-color .15s, background .15s; }
+.cl-item:hover { border-color: var(--line-strong); }
+.cl-item.selected { border-color: rgba(46, 230, 197, .7); background: rgba(46, 230, 197, .08); box-shadow: 0 0 0 1px rgba(46, 230, 197, .25); }
+.cl-item.dragging { opacity: .45; }
+.cl-item.drop-target { border-color: var(--blue); border-style: dashed; }
+.cl-handle { padding: 0 2px 0 8px; color: var(--muted); cursor: grab; }
+.cl-row { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 9px 12px 9px 4px; border: 0; background: none; text-align: left; }
+.cl-num { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: rgba(255, 255, 255, .07); font-size: 13px; font-weight: 700; }
+.cl-item.selected .cl-num { background: rgba(46, 230, 197, .2); color: var(--teal); }
+.cl-num.big { width: 38px; height: 38px; font-size: 17px; border-radius: 10px; background: rgba(46, 230, 197, .16); color: var(--teal); }
+.cl-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-chip { flex: none; font-size: 11.5px; padding: 3px 9px; border-radius: 20px; background: rgba(255, 255, 255, .07); color: var(--text-2); white-space: nowrap; }
+.cl-chip.scale { background: rgba(76, 155, 255, .14); color: #a9cbff; }
+.cl-chip.flag { background: rgba(255, 138, 92, .14); color: var(--low); }
+.cl-weight { flex: none; width: 28px; text-align: right; font-family: var(--mono); font-size: 13px; font-weight: 600; }
+.cl-warn { flex: none; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: rgba(255, 198, 92, .2); color: var(--mid); font-size: 12px; font-weight: 800; }
+.cl-total { margin: 4px 0 0; }
+.cl-total strong { color: var(--text); font-family: var(--mono); }
+
+.cl-edit-tools { display: flex; gap: 6px; }
+.cl-edit-head { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(0, 0, 0, .18); }
+.cl-edit-head strong { flex: 1; min-width: 0; font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-id { flex: none; font-family: var(--mono); font-size: 12px; color: var(--text-2); padding: 3px 9px; border-radius: 20px; background: rgba(255, 255, 255, .06); }
+#criteria-editor { display: grid; gap: 12px; }
+.cl-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; }
+.cl-form-grid .span-2 { grid-column: 1 / -1; }
+.field-title { display: inline-flex; align-items: center; gap: 6px; }
+.edit-field > input:disabled { opacity: .5; }
+.info-tip { position: relative; display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--line-strong); font-size: 10.5px; font-weight: 700; font-style: normal; color: var(--text-2); cursor: help; flex: none; }
+.info-tip::after { content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%); width: max-content; max-width: 280px; padding: 8px 10px; border-radius: 9px; background: #0b1636; border: 1px solid var(--line-strong); color: var(--text); font-size: 12.5px; font-weight: 400; line-height: 1.4; text-align: left; white-space: normal; box-shadow: 0 12px 30px -10px rgba(0, 0, 0, .7); opacity: 0; pointer-events: none; transition: opacity .15s; z-index: 50; }
+.info-tip:hover::after, .info-tip:focus::after { opacity: 1; }
+.cl-na { padding: 4px 2px; }
+.cl-rule-card { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(0, 0, 0, .15); }
+.cl-rule-card.warn { border-color: rgba(255, 198, 92, .55); background: rgba(255, 198, 92, .05); }
+.cl-rule-head { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--text); }
+.cl-rule-head .ico { color: var(--text-2); }
+.cl-foot { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; padding-top: 12px; border-top: 1px solid var(--line); }
+.cl-dirty { margin-right: auto; font-size: 13px; color: var(--mid); }
+.cl-dirty::before { content: "● "; }
+.cl-inline { margin: 2px 0 6px; color: var(--text-2); }
+
+.cl-dialog { width: min(440px, calc(100% - 32px)); padding: 0; border: 1px solid var(--line-strong); border-radius: 16px; background: var(--surface-solid); color: var(--text); box-shadow: 0 30px 80px -20px rgba(0, 0, 0, .8); }
+.cl-dialog::backdrop { background: rgba(2, 6, 18, .7); backdrop-filter: blur(3px); }
+.cl-dialog form { display: grid; gap: 12px; padding: 20px; }
+.cl-dialog h4 { margin: 0; font-size: 18px; }
+.cl-source { border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px 10px; margin: 0; display: grid; gap: 6px; }
+.cl-source legend { font-size: 13px; color: var(--muted); padding: 0 6px; }
+.cl-source label { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+.cl-source input { width: 16px; height: 16px; accent-color: var(--teal); }
+
+@media (max-width: 1100px) { .cl-grid { grid-template-columns: 1fr; } }
+@media (max-width: 640px) {
+  .cl-form-grid { grid-template-columns: 1fr; }
+  .cl-current { min-width: 0; flex: 1 1 100%; }
+  .cl-actions { width: 100%; }
+  .cl-chip { display: none; }
+}
+/* колонки чек-листа не должны раздвигаться длинными названиями */
+.cl-card, .cl-list, .cl-item, .cl-row, .cl-edit-head, .cl-form-grid > * { min-width: 0; }
+.cl-card { overflow: hidden; }
+.cl-card-head { flex-wrap: wrap; }
+.info-tip::after { left: -10px; transform: none; }

@@ -95,7 +95,7 @@
               <span>Аналитика</span></button>
             <button type="button" data-view="checklist">
               <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              <span>Чек-лист</span></button>
+              <span>Чек-листы</span></button>
           </nav>
           <div class="side-foot">
             <button type="button" class="side-home" data-home>
@@ -305,14 +305,87 @@
             <div id="analytics" class="analytics"></div>
           </section>
 
-          <!-- Вид: Чек-лист -->
+          <!-- Вид: Чек-листы -->
           <section class="view view-checklist" data-view-panel="checklist" hidden>
-            <div class="view-head">
-              <p class="muted">Формулировки, типы, веса, шкалы и N/A. Количество критериев не ограничено. Не меняйте ID существующих критериев без необходимости.</p>
-              <button type="button" id="load-checklist" class="secondary">Обновить</button>
+            <header class="cl-head">
+              <div class="cl-title">
+                <span class="cl-title-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="22" height="22"><path d="M9 6h11M9 12h11M9 18h11" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="4.5" cy="6" r="1.4" fill="currentColor"/><circle cx="4.5" cy="12" r="1.4" fill="currentColor"/><circle cx="4.5" cy="18" r="1.4" fill="currentColor"/></svg>
+                </span>
+                <div><h3>Чек-листы</h3><p class="muted small">Создавайте, редактируйте и управляйте наборами критериев оценки.</p></div>
+              </div>
+              <div class="cl-actions">
+                <label class="cl-current">
+                  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5zM3 13l9 5 9-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                  <span class="cl-current-text"><small>Текущий чек-лист</small>
+                    <select id="checklist-select" aria-label="Текущий чек-лист"></select></span>
+                </label>
+                <button type="button" id="new-checklist" class="btn btn-primary">
+                  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+                  Новый чек-лист</button>
+                <div class="menu-wrap">
+                  <button type="button" id="cl-menu-btn" class="icon-btn icon-btn-lg" aria-haspopup="true" aria-expanded="false" aria-label="Действия с чек-листом">
+                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="5" r="1.7" fill="currentColor"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><circle cx="12" cy="19" r="1.7" fill="currentColor"/></svg></button>
+                  <div id="cl-menu" class="menu-pop" role="menu" hidden>
+                    <button type="button" role="menuitem" data-cl-action="rename">Переименовать</button>
+                    <button type="button" role="menuitem" data-cl-action="duplicate">Дублировать</button>
+                    <button type="button" role="menuitem" data-cl-action="default">Новый из исходного PDF (8 критериев)</button>
+                    <button type="button" role="menuitem" data-cl-action="delete" class="danger">Удалить чек-лист…</button>
+                  </div>
+                </div>
+              </div>
+            </header>
+
+            <div class="cl-grid">
+              <section class="cl-card cl-list-card" aria-labelledby="cl-list-title">
+                <div class="cl-card-head">
+                  <h4 id="cl-list-title">Критерии (<span id="cl-count">0</span>)</h4>
+                  <button type="button" id="add-criterion" class="btn btn-outline btn-sm">
+                    <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+                    Добавить критерий</button>
+                </div>
+                <p class="muted small">Выберите критерий, чтобы изменить его настройки. Порядок можно менять перетаскиванием.</p>
+                <ol id="cl-list" class="cl-list"></ol>
+                <p class="cl-total muted small">Сумма весов: <strong id="cl-weight-sum">0</strong> · при N/A вес делится между остальными</p>
+              </section>
+
+              <section class="cl-card cl-edit-card" aria-labelledby="cl-edit-title">
+                <div class="cl-card-head">
+                  <h4 id="cl-edit-title">Редактирование критерия</h4>
+                  <div class="cl-edit-tools">
+                    <button type="button" id="cl-duplicate" class="icon-btn icon-btn-lg" title="Дублировать критерий" aria-label="Дублировать критерий">
+                      <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button>
+                    <button type="button" id="cl-delete" class="icon-btn icon-btn-lg danger" title="Удалить критерий" aria-label="Удалить критерий">
+                      <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M5 7h14M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                  </div>
+                </div>
+                <div id="criteria-editor"></div>
+                <div class="cl-foot">
+                  <span id="cl-dirty" class="cl-dirty" hidden>Есть несохранённые изменения</span>
+                  <button type="button" id="load-checklist" class="btn btn-ghost">Отмена</button>
+                  <button type="button" id="save-checklist" class="btn btn-primary">
+                    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    Сохранить чек-лист</button>
+                </div>
+              </section>
             </div>
-            <div id="criteria-editor"></div>
-            <div class="actions"><button type="button" id="add-criterion" class="secondary">+ Новый критерий</button><button type="button" id="save-checklist" class="primary">Сохранить чек-лист</button></div>
+
+            <dialog id="cl-dialog" class="cl-dialog">
+              <form method="dialog" id="cl-dialog-form">
+                <h4 id="cl-dialog-title">Новый чек-лист</h4>
+                <label class="edit-field"><span>Название</span><input id="cl-dialog-name" maxlength="80" required /></label>
+                <fieldset id="cl-dialog-source" class="cl-source">
+                  <legend>На основе</legend>
+                  <label><input type="radio" name="cl-source" value="current" checked /> Копия текущего чек-листа</label>
+                  <label><input type="radio" name="cl-source" value="default" /> Исходный чек-лист из PDF (8 критериев)</label>
+                  <label><input type="radio" name="cl-source" value="blank" /> Пустой (один критерий)</label>
+                </fieldset>
+                <div class="actions">
+                  <button type="button" class="btn btn-ghost" id="cl-dialog-cancel">Отмена</button>
+                  <button type="submit" class="btn btn-primary" id="cl-dialog-ok" value="ok">Создать</button>
+                </div>
+              </form>
+            </dialog>
           </section>
         </div>
       </div>

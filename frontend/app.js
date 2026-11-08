@@ -365,7 +365,12 @@ async function renderAssessment() {
   const aiPanel = node("div", "", "ai-panel");
   aiPanel.append(node("h3", "Автоматическая AI-оценка"));
   const aiStatus = node("p", "Проверяем ключи...", "muted small");
-  aiPanel.append(aiStatus);
+  const clLine = node("p", "", "cl-inline small");
+  clLine.append(document.createTextNode(`Чек-лист: «${currentChecklist.name}» · ${currentChecklist.criteria.length} критериев · v${currentChecklist.version} `));
+  const clChange = node("button", "сменить", "link-button"); clChange.type = "button";
+  clChange.addEventListener("click", () => showView("checklist"));
+  clLine.append(clChange);
+  aiPanel.append(clLine, aiStatus);
   const aiControls = node("div", "", "ai-controls");
   const selectLabel = node("label", "", "edit-field");
   selectLabel.append(node("span", "Режим"));
@@ -558,7 +563,7 @@ function renderResult(parent, result) {
 // ---------- Разделы (вид) ----------
 const VIEW_TITLES = {
   evaluate: "Оценка диалогов", add: "Добавить свои диалоги", appeals: "Апелляции", review: "Ревью",
-  analytics: "Аналитика", checklist: "Чек-лист", case: "Карточка апелляции",
+  analytics: "Аналитика", checklist: "Чек-листы", case: "Карточка апелляции",
 };
 let previousView = "review";
 
@@ -1073,17 +1078,19 @@ function renderAnalytics() {
   box.append(grid);
 }
 
-// ---------- Редактор чек-листа ----------
-function labelWithInput(title, value, onchange, type = "text") {
-  const label = node("label", "", "edit-field");
-  label.append(node("span", title));
-  const input = document.createElement(type === "textarea" ? "textarea" : "input");
-  if (type !== "textarea") input.type = type;
-  input.value = value ?? "";
-  input.addEventListener("input", () => onchange(input.value));
-  label.append(input);
-  return label;
-}
+// ---------- Чек-листы: список критериев + редактор ----------
+let selectedCriterion = 0;
+let checklistLibrary = {active: null, items: []};
+const DEFAULT_SECTIONS = ["Начало и понимание запроса", "Безопасность и решение", "Ведение и завершение", "Грубые нарушения"];
+const TIPS = {
+  type: "Да / Нет — выполнено или нет, баллы = вес. Шкала — несколько уровней: баллы = вес × значение / максимум. Флаг — без баллов, отдельно отмечает грубую ошибку.",
+  weight: "Сколько баллов даёт критерий. Итог = набранные баллы / сумма весов применимых критериев × 100.",
+  na: "N/A — критерий неприменим к этому диалогу (это не «Нет»). Его вес делится между остальными критериями.",
+  rule: "Что считается выполнением. Этот текст получает AI и видит проверяющий.",
+  naRule: "В какой ситуации критерий неприменим. AI ставит N/A только по этому правилу.",
+  section: "Группа критериев. Для каждой секции считается свой подытог, на общий итог не влияет.",
+  scale: "Допустимые значения через запятую, от 0 до максимума. Например: 0, 5, 10, 15, 20.",
+};
 
 const TRANSLIT = {а:"a",б:"b",в:"v",г:"g",д:"d",е:"e",ё:"e",ж:"zh",з:"z",и:"i",й:"y",к:"k",л:"l",м:"m",н:"n",о:"o",п:"p",р:"r",с:"s",т:"t",у:"u",ф:"f",х:"h",ц:"ts",ч:"ch",ш:"sh",щ:"sch",ъ:"",ы:"y",ь:"",э:"e",ю:"yu",я:"ya",
   ә:"a",ғ:"g",қ:"q",ң:"n",ө:"o",ұ:"u",ү:"u",һ:"h",і:"i"};
@@ -1096,68 +1103,377 @@ function uniqueCriterionId(name, self) {
   return id;
 }
 
+const typeChip = (c) => c.type === "scale" ? `Шкала (0–${c.scale?.length ? c.scale.at(-1) : "?"})` : c.type === "flag" ? "Флаг" : "Да / Нет";
+const stripDraft = (list) => list.map(({_new, ...rest}) => rest);
+const isDirty = () => !!currentChecklist && JSON.stringify(stripDraft(draftCriteria)) !== JSON.stringify(currentChecklist.criteria);
+function markDirty() { $("cl-dirty").hidden = !isDirty(); }
+
+function infoTip(text) {
+  const tip = node("span", "i", "info-tip");
+  tip.tabIndex = 0; tip.dataset.tip = text; tip.setAttribute("aria-label", text); tip.setAttribute("role", "note");
+  return tip;
+}
+
+function fieldLabel(title, tip) {
+  const span = node("span", "", "field-title");
+  span.append(document.createTextNode(title));
+  if (tip) span.append(infoTip(tip));
+  return span;
+}
+
 async function loadChecklist() {
   currentChecklist = await requestJson("/api/checklist");
   draftCriteria = structuredClone(currentChecklist.criteria);
+  selectedCriterion = Math.max(0, Math.min(selectedCriterion, draftCriteria.length - 1));
   renderEditor();
   renderSummary();
   if (activeConversation) await renderAssessment();
+  await loadLibrary();
+}
+
+async function loadLibrary() {
+  try { checklistLibrary = await requestJson("/api/checklists"); }
+  catch (error) { notify(`Чек-листы: ${error.message}`, "error"); return; }
+  const select = $("checklist-select");
+  select.replaceChildren(...checklistLibrary.items.map(i => new Option(`${i.name} (${i.count} ${i.count === 1 ? "критерий" : i.count < 5 ? "критерия" : "критериев"})`, i.id)));
+  select.value = checklistLibrary.active;
 }
 
 function renderEditor() {
-  const area = $("criteria-editor");
-  area.replaceChildren();
-  draftCriteria.forEach((criterion, position) => {
-    const card = node("div", "", "criterion-editor");
-    const top = node("div", "", "panel-heading");
-    const heading = node("div", "", "crit-heading");
-    const headName = node("strong", `${position + 1}. ${criterion.name || "Без названия"}`);
-    const headId = node("span", `ID: ${criterion.id}${criterion._new ? " · новый, ещё не сохранён" : ""}`, "muted small mono");
-    heading.append(headName, headId);
-    top.append(heading);
-    const remove = node("button", "Удалить", "danger-outline");
-    remove.type = "button";
-    remove.addEventListener("click", () => { draftCriteria.splice(position, 1); renderEditor(); });
-    top.append(remove);
-    card.append(top);
-    const fields = node("div", "", "editor-grid");
-    fields.append(labelWithInput("Название", criterion.name, value => {
-      criterion.name = value;
-      // Новому (ещё не сохранённому) критерию ID подбирается по названию.
-      if (criterion._new) criterion.id = uniqueCriterionId(value, criterion);
-      headName.textContent = `${position + 1}. ${value.trim() || "Без названия"}`;
-      headId.textContent = `ID: ${criterion.id}${criterion._new ? " · новый, ещё не сохранён" : ""}`;
-    }));
-    fields.append(labelWithInput("Секция", criterion.section, value => criterion.section = value));
-    fields.append(labelWithInput("Вес", criterion.weight, value => criterion.weight = Number(value), "number"));
-    const typeField = node("label", "", "edit-field");
-    typeField.append(node("span", "Тип оценки"));
-    const typeSelect = document.createElement("select");
-    for (const [value, title] of [["yes_no", "Да / Нет"], ["scale", "Числовая шкала"], ["flag", "Флаг без баллов"]]) {
-      const opt = new Option(title, value); opt.selected = criterion.type === value; typeSelect.append(opt);
-    }
-    typeSelect.addEventListener("change", () => {
-      criterion.type = typeSelect.value;
-      if (criterion.type === "flag") { criterion.weight = 0; criterion.allow_na = false; criterion.scale = []; }
-      else if (criterion.weight === 0) criterion.weight = 10;
-      if (criterion.type === "scale" && !criterion.scale.length) criterion.scale = [0, 5, 10];
-      if (criterion.type !== "scale") criterion.scale = [];
+  renderCriteriaList();
+  renderCriterionForm();
+  markDirty();
+}
+
+function renderCriteriaList() {
+  const list = $("cl-list");
+  list.replaceChildren();
+  $("cl-count").textContent = String(draftCriteria.length);
+  $("cl-weight-sum").textContent = String(draftCriteria.reduce((sum, c) => sum + (Number(c.weight) || 0), 0));
+  draftCriteria.forEach((criterion, index) => {
+    const li = node("li", "", "cl-item" + (index === selectedCriterion ? " selected" : ""));
+    li.draggable = true;
+    li.dataset.index = String(index);
+    const handle = svg('<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="9" cy="6" r="1.5" fill="currentColor"/><circle cx="15" cy="6" r="1.5" fill="currentColor"/><circle cx="9" cy="12" r="1.5" fill="currentColor"/><circle cx="15" cy="12" r="1.5" fill="currentColor"/><circle cx="9" cy="18" r="1.5" fill="currentColor"/><circle cx="15" cy="18" r="1.5" fill="currentColor"/></svg>');
+    handle.classList.add("cl-handle");
+    handle.title = "Перетащите, чтобы изменить порядок";
+    const button = node("button", "", "cl-row");
+    button.type = "button";
+    button.append(node("span", String(index + 1), "cl-num"), node("span", criterion.name || "Без названия", "cl-name"),
+      node("span", typeChip(criterion), `cl-chip ${criterion.type}`), node("span", String(criterion.weight ?? 0), "cl-weight"));
+    if (criterion.allow_na && !String(criterion.na_rule || "").trim()) button.append(node("span", "!", "cl-warn"));
+    button.addEventListener("click", () => { selectedCriterion = index; renderEditor(); });
+    li.append(handle, button);
+    li.addEventListener("dragstart", e => { e.dataTransfer.setData("text/plain", String(index)); li.classList.add("dragging"); });
+    li.addEventListener("dragend", () => li.classList.remove("dragging"));
+    li.addEventListener("dragover", e => { e.preventDefault(); li.classList.add("drop-target"); });
+    li.addEventListener("dragleave", () => li.classList.remove("drop-target"));
+    li.addEventListener("drop", e => {
+      e.preventDefault();
+      const from = Number(e.dataTransfer.getData("text/plain"));
+      if (Number.isNaN(from) || from === index) return renderCriteriaList();
+      const selected = draftCriteria[selectedCriterion];
+      const [moved] = draftCriteria.splice(from, 1);
+      draftCriteria.splice(index, 0, moved);
+      selectedCriterion = draftCriteria.indexOf(selected);
       renderEditor();
     });
-    typeField.append(typeSelect); fields.append(typeField);
-    if (criterion.type === "scale") fields.append(labelWithInput("Шкала, через запятую", criterion.scale.join(", "), value => {
-      criterion.scale = value.split(",").map(x => Number(x.trim())).filter(Number.isInteger);
-    }));
-    const naLabel = node("label", "", "checkline");
-    const naCheck = document.createElement("input"); naCheck.type = "checkbox"; naCheck.checked = criterion.allow_na;
-    naCheck.disabled = criterion.type === "flag";
-    naCheck.addEventListener("change", () => { criterion.allow_na = naCheck.checked; renderEditor(); });
-    naLabel.append(naCheck, node("span", "Разрешить N/A")); fields.append(naLabel);
-    card.append(fields);
-    card.append(labelWithInput("Правило оценки", criterion.rule, value => criterion.rule = value, "textarea"));
-    if (criterion.allow_na) card.append(labelWithInput("Когда допускается N/A", criterion.na_rule, value => criterion.na_rule = value, "textarea"));
-    area.append(card);
+    list.append(li);
   });
+}
+
+function sectionOptions() {
+  return [...new Set([...DEFAULT_SECTIONS, ...draftCriteria.map(c => c.section).filter(Boolean)])];
+}
+
+function renderCriterionForm() {
+  const area = $("criteria-editor");
+  area.replaceChildren();
+  const c = draftCriteria[selectedCriterion];
+  $("cl-duplicate").disabled = !c;
+  $("cl-delete").disabled = !c || draftCriteria.length < 2;
+  if (!c) { area.append(node("p", "Добавьте первый критерий.", "muted")); return; }
+  const position = selectedCriterion;
+
+  const head = node("div", "", "cl-edit-head");
+  const nameTitle = node("strong", c.name || "Без названия");
+  const idChip = node("span", `ID: ${c.id}`, "cl-id");
+  if (c._new) idChip.title = "ID подбирается по названию, пока критерий не сохранён";
+  head.append(node("span", String(position + 1), "cl-num big"), nameTitle, idChip);
+  area.append(head);
+
+  const grid = node("div", "", "cl-form-grid");
+  const onChange = () => { renderCriteriaList(); markDirty(); };
+
+  // Название
+  const nameField = node("label", "", "edit-field");
+  const nameInput = document.createElement("input");
+  nameInput.value = c.name || ""; nameInput.maxLength = 120; nameInput.id = "cl-name-input";
+  nameInput.addEventListener("input", () => {
+    c.name = nameInput.value;
+    if (c._new) c.id = uniqueCriterionId(c.name, c);
+    nameTitle.textContent = c.name.trim() || "Без названия";
+    idChip.textContent = `ID: ${c.id}`;
+    onChange();
+  });
+  nameField.append(fieldLabel("Название критерия"), nameInput);
+
+  // Секция: готовые + своя
+  const sectionField = node("div", "", "edit-field");
+  const sectionSelect = document.createElement("select");
+  sectionSelect.setAttribute("aria-label", "Секция");
+  const customSection = document.createElement("input");
+  customSection.placeholder = "Название новой секции"; customSection.maxLength = 80;
+  const fillSections = () => {
+    sectionSelect.replaceChildren(new Option("Выберите секцию", ""), ...sectionOptions().map(sct => new Option(sct, sct)), new Option("+ Добавить свою секцию…", "__new"));
+    sectionSelect.value = c.section || "";
+  };
+  fillSections();
+  customSection.hidden = true;
+  sectionSelect.addEventListener("change", () => {
+    if (sectionSelect.value === "__new") {
+      customSection.hidden = false; customSection.value = ""; customSection.focus();
+      return;
+    }
+    customSection.hidden = true;
+    c.section = sectionSelect.value;
+    onChange();
+  });
+  customSection.addEventListener("input", () => { c.section = customSection.value.trim(); onChange(); });
+  customSection.addEventListener("change", () => { if (c.section) { customSection.hidden = true; fillSections(); } });
+  customSection.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); customSection.dispatchEvent(new Event("change")); } });
+  sectionField.append(fieldLabel("Секция", TIPS.section), sectionSelect, customSection);
+
+  // Тип
+  const typeField = node("label", "", "edit-field");
+  const typeSelect = document.createElement("select");
+  for (const [value, title] of [["yes_no", "Да / Нет"], ["scale", "Числовая шкала"], ["flag", "Флаг (грубая ошибка, без баллов)"]]) typeSelect.append(new Option(title, value));
+  typeSelect.value = c.type;
+  typeSelect.addEventListener("change", () => {
+    c.type = typeSelect.value;
+    if (c.type === "flag") { c.weight = 0; c.allow_na = false; c.scale = []; }
+    else if (!c.weight) c.weight = 10;
+    if (c.type === "scale" && !c.scale?.length) c.scale = [0, 5, 10];
+    if (c.type !== "scale") c.scale = [];
+    renderEditor();
+  });
+  typeField.append(fieldLabel("Тип оценки", TIPS.type), typeSelect);
+
+  // Вес
+  const weightField = node("label", "", "edit-field");
+  const weightInput = document.createElement("input");
+  weightInput.type = "number"; weightInput.min = "0"; weightInput.max = "100"; weightInput.step = "1";
+  weightInput.value = String(c.weight ?? 0);
+  weightInput.disabled = c.type === "flag";
+  weightInput.addEventListener("input", () => { c.weight = Number(weightInput.value); onChange(); });
+  weightField.append(fieldLabel("Вес (баллы)", TIPS.weight), weightInput);
+
+  grid.append(nameField, sectionField, typeField, weightField);
+  if (c.type === "scale") {
+    const scaleField = node("label", "", "edit-field span-2");
+    const scaleInput = document.createElement("input");
+    scaleInput.value = (c.scale || []).join(", ");
+    scaleInput.placeholder = "0, 5, 10";
+    scaleInput.addEventListener("input", () => {
+      c.scale = scaleInput.value.split(",").map(x => x.trim()).filter(Boolean).map(Number).filter(Number.isInteger);
+      onChange();
+    });
+    scaleField.append(fieldLabel("Шкала — допустимые значения", TIPS.scale), scaleInput);
+    grid.append(scaleField);
+  }
+  area.append(grid);
+
+  // N/A
+  const naLine = node("label", "", "checkline cl-na");
+  const naCheck = document.createElement("input");
+  naCheck.type = "checkbox"; naCheck.checked = !!c.allow_na; naCheck.disabled = c.type === "flag";
+  naCheck.addEventListener("change", () => { c.allow_na = naCheck.checked; if (!c.allow_na) c.na_rule = ""; renderEditor(); });
+  naLine.append(naCheck, node("span", c.type === "flag" ? "Разрешить N/A (недоступно для флага)" : "Разрешить N/A"), infoTip(TIPS.na));
+  area.append(naLine);
+
+  const ruleCard = (title, tip, icon, value, onInput, placeholder, warn) => {
+    const card = node("label", "", "cl-rule-card" + (warn ? " warn" : ""));
+    const head = node("span", "", "cl-rule-head");
+    head.append(svg(icon), document.createTextNode(title), infoTip(tip));
+    const text = document.createElement("textarea");
+    text.rows = 2; text.value = value || ""; text.placeholder = placeholder;
+    text.addEventListener("input", () => { onInput(text.value); card.classList.toggle("warn", warn !== undefined && !text.value.trim()); onChange(); });
+    card.append(head, text);
+    return card;
+  };
+  area.append(ruleCard("Правило оценки", TIPS.rule,
+    '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M7 3h7l5 5v13H7z M14 3v5h5 M10 13h6 M10 17h6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
+    c.rule, v => { c.rule = v; }, "Да: оператор …"));
+  if (c.allow_na) {
+    area.append(ruleCard("Когда допускается N/A", TIPS.naRule,
+      '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="5" r="2" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="5" cy="19" r="2" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="19" cy="19" r="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 7v5M12 12l-6 5M12 12l6 5" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>',
+      c.na_rule, v => { c.na_rule = v; }, "Например: запрос не требовал идентификации.", !String(c.na_rule || "").trim()));
+  }
+}
+
+function addCriterion() {
+  const fresh = {_new: true, id: "", section: draftCriteria[selectedCriterion]?.section || "Дополнительно", name: "Новый критерий", weight: 5,
+    type: "yes_no", allow_na: false, scale: [], rule: "Да: опишите, что считается выполнением.", na_rule: ""};
+  fresh.id = uniqueCriterionId(fresh.name, fresh);
+  draftCriteria.push(fresh);
+  selectedCriterion = draftCriteria.length - 1;
+  renderEditor();
+  $("cl-name-input")?.select();
+}
+
+function duplicateCriterion() {
+  const c = draftCriteria[selectedCriterion];
+  if (!c) return;
+  const copy = {...structuredClone(c), _new: true, name: `${c.name} (копия)`};
+  copy.id = uniqueCriterionId(copy.name, copy);
+  draftCriteria.splice(selectedCriterion + 1, 0, copy);
+  selectedCriterion += 1;
+  renderEditor();
+}
+
+function deleteCriterion() {
+  const c = draftCriteria[selectedCriterion];
+  if (!c || draftCriteria.length < 2) return;
+  if (!confirm(`Удалить критерий «${c.name}»? Изменение применится после «Сохранить чек-лист».`)) return;
+  draftCriteria.splice(selectedCriterion, 1);
+  selectedCriterion = Math.max(0, selectedCriterion - 1);
+  renderEditor();
+}
+
+async function saveChecklist() {
+  const bad = draftCriteria.findIndex(c => c.allow_na && !String(c.na_rule || "").trim());
+  if (bad >= 0) {
+    selectedCriterion = bad; renderEditor();
+    notify(`«${draftCriteria[bad].name}»: N/A разрешён — опишите, когда он допускается, или снимите галочку.`, "error");
+    return;
+  }
+  const button = $("save-checklist");
+  button.disabled = true;
+  try {
+    currentChecklist = await requestJson("/api/checklist", {
+      method: "PUT", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({name: currentChecklist?.name, criteria: stripDraft(draftCriteria)})
+    });
+    draftCriteria = structuredClone(currentChecklist.criteria);
+    renderEditor();
+    renderSummary();
+    await loadLibrary();
+    if (activeConversation) await renderAssessment();
+    notify(`Чек-лист «${currentChecklist.name}» сохранён (версия ${currentChecklist.version}). Новые оценки используют его.`, "success");
+  } catch (error) { notify(`Ошибка сохранения: ${error.message}`, "error"); }
+  finally { button.disabled = false; }
+}
+
+async function applyChecklistResponse(result, message) {
+  currentChecklist = result.checklist;
+  draftCriteria = structuredClone(currentChecklist.criteria);
+  selectedCriterion = 0;
+  checklistLibrary = result.library;
+  renderEditor();
+  renderSummary();
+  await loadLibrary();
+  if (activeConversation) await renderAssessment();
+  notify(message, "success");
+}
+
+function confirmDiscard() {
+  return !isDirty() || confirm("Есть несохранённые изменения в текущем чек-листе. Отменить их?");
+}
+
+async function switchChecklist(id) {
+  if (!confirmDiscard()) { $("checklist-select").value = checklistLibrary.active; return; }
+  try {
+    const result = await requestJson(`/api/checklists/${encodeURIComponent(id)}/activate`, {method: "POST"});
+    await applyChecklistResponse(result, `Выбран чек-лист «${result.checklist.name}». Новые оценки используют его.`);
+  } catch (error) { notify(`Чек-лист: ${error.message}`, "error"); $("checklist-select").value = checklistLibrary.active; }
+}
+
+function openChecklistDialog(mode, preset = "current") {
+  const dialog = $("cl-dialog");
+  const active = checklistLibrary.items.find(i => i.id === checklistLibrary.active);
+  dialog.dataset.mode = mode;
+  $("cl-dialog-title").textContent = mode === "rename" ? "Переименовать чек-лист" : "Новый чек-лист";
+  $("cl-dialog-ok").textContent = mode === "rename" ? "Сохранить" : "Создать";
+  $("cl-dialog-source").hidden = mode === "rename";
+  $("cl-dialog-name").value = mode === "rename" ? (active?.name || "") : `Чек-лист ${checklistLibrary.items.length + 1}`;
+  dialog.querySelectorAll("input[name=cl-source]").forEach(r => { r.checked = r.value === preset; });
+  dialog.showModal();
+  $("cl-dialog-name").select();
+}
+
+async function submitChecklistDialog() {
+  const dialog = $("cl-dialog");
+  const name = $("cl-dialog-name").value.trim();
+  if (!name) return;
+  try {
+    if (dialog.dataset.mode === "rename") {
+      checklistLibrary = await requestJson(`/api/checklists/${encodeURIComponent(checklistLibrary.active)}`, {
+        method: "PATCH", headers: {"Content-Type": "application/json"}, body: JSON.stringify({name})});
+      currentChecklist.name = name;
+      await loadLibrary();
+      notify(`Чек-лист переименован в «${name}».`, "success");
+    } else {
+      if (!confirmDiscard()) return;
+      const source = dialog.querySelector("input[name=cl-source]:checked")?.value || "current";
+      const result = await requestJson("/api/checklists", {
+        method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({name, source})});
+      await applyChecklistResponse(result, `Создан и выбран чек-лист «${name}».`);
+    }
+  } catch (error) { notify(`Чек-лист: ${error.message}`, "error"); }
+}
+
+async function checklistMenuAction(action) {
+  $("cl-menu").hidden = true;
+  $("cl-menu-btn").setAttribute("aria-expanded", "false");
+  const active = checklistLibrary.items.find(i => i.id === checklistLibrary.active);
+  if (action === "rename") return openChecklistDialog("rename");
+  if (action === "default") return openChecklistDialog("new", "default");
+  if (action === "duplicate") {
+    if (isDirty() && !confirm("Будет скопирована последняя СОХРАНЁННАЯ версия. Продолжить?")) return;
+    try {
+      const result = await requestJson("/api/checklists", {method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({name: `${active?.name || "Чек-лист"} (копия)`, source: "current"})});
+      await applyChecklistResponse(result, "Создана копия чек-листа — она выбрана текущей.");
+    } catch (error) { notify(`Чек-лист: ${error.message}`, "error"); }
+    return;
+  }
+  if (action === "delete") {
+    const other = checklistLibrary.items.find(i => i.id !== checklistLibrary.active);
+    if (!other) { notify("Это единственный чек-лист — его нельзя удалить.", "error"); return; }
+    if (!confirm(`Удалить чек-лист «${active?.name}»? Текущим станет «${other.name}».`)) return;
+    try {
+      const switched = await requestJson(`/api/checklists/${encodeURIComponent(other.id)}/activate`, {method: "POST"});
+      await requestJson(`/api/checklists/${encodeURIComponent(active.id)}`, {method: "DELETE"});
+      await applyChecklistResponse({...switched, library: checklistLibrary}, `Чек-лист «${active.name}» удалён. Текущий: «${other.name}».`);
+    } catch (error) { notify(`Чек-лист: ${error.message}`, "error"); }
+  }
+}
+
+function setupChecklistView() {
+  $("add-criterion").addEventListener("click", addCriterion);
+  $("cl-duplicate").addEventListener("click", duplicateCriterion);
+  $("cl-delete").addEventListener("click", deleteCriterion);
+  $("save-checklist").addEventListener("click", saveChecklist);
+  $("load-checklist").addEventListener("click", async () => {
+    if (!isDirty()) { notify("Изменений нет.", ""); return; }
+    if (!confirm("Отменить все несохранённые изменения?")) return;
+    try { await loadChecklist(); notify("Изменения отменены.", "success"); }
+    catch (error) { notify(`Ошибка: ${error.message}`, "error"); }
+  });
+  $("checklist-select").addEventListener("change", e => switchChecklist(e.target.value));
+  $("new-checklist").addEventListener("click", () => openChecklistDialog("new"));
+  $("cl-dialog-cancel").addEventListener("click", () => $("cl-dialog").close());
+  $("cl-dialog-form").addEventListener("submit", e => { e.preventDefault(); $("cl-dialog").close(); submitChecklistDialog(); });
+  const menuBtn = $("cl-menu-btn"), menu = $("cl-menu");
+  menuBtn.addEventListener("click", e => {
+    e.stopPropagation();
+    menu.hidden = !menu.hidden;
+    menuBtn.setAttribute("aria-expanded", String(!menu.hidden));
+  });
+  menu.querySelectorAll("[data-cl-action]").forEach(b => b.addEventListener("click", () => checklistMenuAction(b.dataset.clAction)));
+  document.addEventListener("click", e => { if (!menu.hidden && !menu.contains(e.target)) { menu.hidden = true; menuBtn.setAttribute("aria-expanded", "false"); } });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && !menu.hidden) { menu.hidden = true; menuBtn.focus(); } });
+  window.addEventListener("beforeunload", e => { if (isDirty()) { e.preventDefault(); e.returnValue = ""; } });
 }
 
 // ---------- Импорт ----------
@@ -1196,34 +1512,7 @@ $("origin-filter").addEventListener("change", renderList);
 setupAddView();
 document.addEventListener("cqa:appeals-changed", async () => { await loadAppeals(); await loadScores(); });
 
-$("load-checklist").addEventListener("click", async () => {
-  try { await loadChecklist(); notify("Чек-лист загружен.", "success"); }
-  catch (error) { notify(`Ошибка: ${error.message}`, "error"); }
-});
-
-$("add-criterion").addEventListener("click", () => {
-  const fresh = {_new: true, id: "", section: "Дополнительно", name: "Новый критерий", weight: 5,
-    type: "yes_no", allow_na: false, scale: [], rule: "Опишите, что значит Да.", na_rule: ""};
-  fresh.id = uniqueCriterionId(fresh.name, fresh);
-  draftCriteria.push(fresh);
-  renderEditor();
-  $("criteria-editor").lastElementChild?.querySelector("input")?.select();
-  $("criteria-editor").lastElementChild?.scrollIntoView({behavior: "smooth", block: "center"});
-});
-
-$("save-checklist").addEventListener("click", async () => {
-  try {
-    currentChecklist = await requestJson("/api/checklist", {
-      method: "PUT", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({name: currentChecklist?.name || "CQA Checklist", criteria: draftCriteria})
-    });
-    draftCriteria = structuredClone(currentChecklist.criteria);
-    renderEditor();
-    renderSummary();
-    if (activeConversation) await renderAssessment();
-    notify(`Чек-лист сохранён (версия ${currentChecklist.version}). Новые оценки используют его.`, "success");
-  } catch (error) { notify(`Ошибка сохранения: ${error.message}`, "error"); }
-});
+setupChecklistView();
 
 refresh()
   .then(status => {

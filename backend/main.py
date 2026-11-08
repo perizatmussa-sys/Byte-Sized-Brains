@@ -264,9 +264,37 @@ def get_checklist():
 
 @app.put("/api/checklist")
 def save_checklist(payload: dict[str, Any]):
-    config = validate_checklist(payload)
-    save_json(CONFIG_FILE, config)
-    return config
+    """Сохранить активный чек-лист (и обновить его копию в библиотеке чек-листов)."""
+    return checklists.save_active(payload)
+
+
+# Несколько чек-листов: список, создание, выбор, переименование, удаление.
+from . import checklists
+
+
+@app.get("/api/checklists")
+def get_checklists():
+    return checklists.list_checklists()
+
+
+@app.post("/api/checklists")
+def new_checklist(payload: dict[str, Any]):
+    return checklists.create(payload)
+
+
+@app.post("/api/checklists/{checklist_id}/activate")
+def activate_checklist(checklist_id: str):
+    return checklists.activate(checklist_id)
+
+
+@app.patch("/api/checklists/{checklist_id}")
+def rename_checklist(checklist_id: str, payload: dict[str, Any]):
+    return checklists.rename(checklist_id, payload)
+
+
+@app.delete("/api/checklists/{checklist_id}")
+def delete_checklist(checklist_id: str):
+    return checklists.delete(checklist_id)
 
 
 @app.get("/api/evaluations/{conversation_id}")
